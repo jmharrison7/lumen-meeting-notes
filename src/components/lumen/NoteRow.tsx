@@ -48,7 +48,8 @@ export function NoteRow({
             {client ? <ClientChip name={client.name} color={client.tagColor} /> : null}
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            {formatDate(note.date)} · {formatDuration(note.durationMinutes)}
+            <span title={fullDate(note.date)}>{relativeDate(note.date)}</span> ·{" "}
+            {formatDuration(note.durationMinutes)}
             {note.reviewed ? " · reviewed" : ""}
           </p>
           <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
