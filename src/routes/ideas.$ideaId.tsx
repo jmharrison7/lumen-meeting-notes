@@ -33,6 +33,7 @@ function IdeaDetail() {
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [clientId, setClientId] = useState("");
+  const [newClient, setNewClient] = useState<{ name: string; note?: string } | undefined>(undefined);
 
   useEffect(() => {
     if (idea.data) {
@@ -140,15 +141,32 @@ function IdeaDetail() {
             aria-label="Add a tag"
             className="min-h-[38px] w-32 rounded-lg border border-hairline bg-surface px-2.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ember/40"
           />
-          <div className="ml-auto">
+          <div className="ml-auto flex flex-wrap items-center gap-2">
             <ClientSelect
               value={clientId}
+              newClient={newClient}
               onChange={async (choice) => {
+                setNewClient(choice.newClient);
                 if (choice.newClient) return;
                 setClientId(choice.clientId ?? "");
                 await persist({ clientId: choice.clientId });
               }}
             />
+            {newClient?.name.trim() ? (
+              <button
+                onClick={async () => {
+                  const created = await createClient(newClient);
+                  setNewClient(undefined);
+                  setClientId(created.id);
+                  await persist({ clientId: created.id });
+                  await qc.invalidateQueries({ queryKey: ["clients"] });
+                  toast.success(`${created.name} added — idea filed there.`);
+                }}
+                className="min-h-[38px] rounded-lg border border-hairline bg-surface px-2.5 text-xs transition-colors hover:border-ember/40 hover:text-ember"
+              >
+                Create &amp; attach
+              </button>
+            ) : null}
           </div>
         </div>
       </section>
