@@ -14,3 +14,5 @@
 - Per-client Brand DNA hub (voice, always/never, tone, Drive references).
 
 - [x] Sharing & access: collaborators, per-client Access tab, Preview-as simulator, one-off share links
+
+- [x] Address book: Contacts page, reusable recipient field (recap, follow-up, invites), auto-learn from sends/invites, suggested attendees
