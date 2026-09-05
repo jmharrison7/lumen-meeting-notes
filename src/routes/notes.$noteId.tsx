@@ -89,6 +89,12 @@ function NoteDetail() {
   }, []);
 
   useEffect(() => {
+    const onPlay = () => setPlayback({ at: 0 });
+    window.addEventListener("lumen:play-audio", onPlay);
+    return () => window.removeEventListener("lumen:play-audio", onPlay);
+  }, []);
+
+  useEffect(() => {
     if (!highlighted) return;
     const t = setTimeout(() => setHighlighted(null), 2000);
     return () => clearTimeout(t);
