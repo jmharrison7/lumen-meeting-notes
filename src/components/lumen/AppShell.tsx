@@ -9,6 +9,7 @@ import {
   Command as CommandIcon,
   FileText,
   LayoutTemplate,
+  Lightbulb,
   Moon,
   Search,
   Sun,
@@ -34,6 +35,7 @@ const nav = [
   { to: "/notes", label: "All Notes", icon: FileText, exact: false },
   { to: "/actions", label: "Action Items", icon: CheckSquare, exact: false },
   { to: "/clients", label: "Clients", icon: Users, exact: false },
+  { to: "/ideas", label: "Ideas", icon: Lightbulb, exact: false },
   { to: "/templates", label: "Templates", icon: LayoutTemplate, exact: false },
   { to: "/alerts", label: "Alerts", icon: Bell, exact: false },
   { to: "/search", label: "Search", icon: Search, exact: false },
@@ -233,6 +235,14 @@ export function AppShell({ children }: { children: ReactNode }) {
               }}
             >
               Review open action items
+            </CommandItem>
+            <CommandItem
+              onSelect={() => {
+                setPaletteOpen(false);
+                void navigate({ to: "/ideas" });
+              }}
+            >
+              Capture an idea
             </CommandItem>
             <CommandItem
               onSelect={() => {
