@@ -244,3 +244,19 @@ export interface ShareLink {
   revoked: boolean;
   createdAtISO: string;
 }
+
+/* --------------------------------- Contacts --------------------------------- */
+
+export type ContactRole = "client" | "team" | "freelancer" | "other";
+
+export interface Contact {
+  id: string;
+  name: string;
+  email: string;
+  company?: string | undefined;
+  /** Client contact when known. */
+  clientId?: string | undefined;
+  role?: ContactRole | undefined;
+  source: "manual" | "attendee" | "collaborator" | "sent" | "google";
+  createdAtISO: string;
+}
