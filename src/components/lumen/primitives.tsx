@@ -109,7 +109,7 @@ export function EmptyState({
   title: string;
   body: string;
   actionLabel?: string | undefined;
-  actionTo?: "/notes" | "/" | "/clients" | "/actions" | "/search" | undefined;
+  actionTo?: "/notes" | "/" | "/clients" | "/actions" | "/search" | "/ideas" | undefined;
   onAction?: (() => void) | undefined;
 }) {
   return (
