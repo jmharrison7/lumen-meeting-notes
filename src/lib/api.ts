@@ -1021,3 +1021,173 @@ export async function suggestClientForIdea(
   }
   return null;
 }
+
+/* ------------------------------ Sharing & access ----------------------------- */
+
+const COLLAB_KEY = "lumen.collaborators.v1";
+const LINKS_KEY = "lumen.sharelinks.v1";
+
+let collabs: Collaborator[] | null = null;
+let links: ShareLink[] | null = null;
+
+function ensureCollabs(): Collaborator[] {
+  if (collabs) return collabs;
+  collabs = clone(seedCollaborators);
+  if (typeof window !== "undefined") {
+    try {
+      const raw = window.localStorage.getItem(COLLAB_KEY);
+      if (raw) collabs = JSON.parse(raw) as Collaborator[];
+    } catch {
+      /* ignore malformed storage */
+    }
+  }
+  return collabs;
+}
+
+function persistCollabs() {
+  if (typeof window === "undefined" || !collabs) return;
+  window.localStorage.setItem(COLLAB_KEY, JSON.stringify(collabs));
+}
+
+function ensureLinks(): ShareLink[] {
+  if (links) return links;
+  links = clone(seedShareLinks);
+  if (typeof window !== "undefined") {
+    try {
+      const raw = window.localStorage.getItem(LINKS_KEY);
+      if (raw) links = JSON.parse(raw) as ShareLink[];
+    } catch {
+      /* ignore malformed storage */
+    }
+  }
+  return links;
+}
+
+function persistLinks() {
+  if (typeof window === "undefined" || !links) return;
+  window.localStorage.setItem(LINKS_KEY, JSON.stringify(links));
+}
+
+export async function listCollaborators(): Promise<Collaborator[]> {
+  if (BASE) return http<Collaborator[]>("/collaborators");
+  await delay(240);
+  return clone(ensureCollabs());
+}
+
+export async function inviteCollaborator(input: {
+  email: string;
+  name?: string;
+  role: CollaboratorRole;
+  clientIds: string[];
+}): Promise<Collaborator> {
+  if (BASE)
+    return http<Collaborator>("/collaborators", { method: "POST", body: JSON.stringify(input) });
+  await delay(320);
+  const list = ensureCollabs();
+  const email = input.email.trim().toLowerCase();
+  const existing = list.find((c) => c.email.toLowerCase() === email);
+  if (existing) {
+    existing.clientIds = [...new Set([...existing.clientIds, ...input.clientIds])];
+    existing.role = input.role;
+    persistCollabs();
+    return clone(existing);
+  }
+  const person: Collaborator = {
+    id: `col-${Math.random().toString(36).slice(2, 8)}`,
+    email,
+    ...(input.name?.trim() ? { name: input.name.trim() } : {}),
+    role: input.role,
+    clientIds: [...input.clientIds],
+    status: "invited",
+    invitedAtISO: new Date().toISOString(),
+  };
+  list.push(person);
+  persistCollabs();
+  return clone(person);
+}
+
+export async function updateCollaboratorAccess(
+  collabId: string,
+  patch: { role?: CollaboratorRole; clientIds?: string[] },
+): Promise<Collaborator | null> {
+  if (BASE)
+    return http<Collaborator>(`/collaborators/${collabId}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+  await delay(240);
+  const person = ensureCollabs().find((c) => c.id === collabId);
+  if (!person) return null;
+  if (patch.role) person.role = patch.role;
+  if (patch.clientIds) person.clientIds = [...patch.clientIds];
+  persistCollabs();
+  return clone(person);
+}
+
+export async function removeCollaboratorFromClient(
+  collabId: string,
+  clientId: string,
+): Promise<Collaborator | null> {
+  if (BASE)
+    return http<Collaborator>(`/collaborators/${collabId}/clients/${clientId}`, {
+      method: "DELETE",
+    });
+  await delay(220);
+  const person = ensureCollabs().find((c) => c.id === collabId);
+  if (!person) return null;
+  person.clientIds = person.clientIds.filter((id) => id !== clientId);
+  persistCollabs();
+  return clone(person);
+}
+
+export async function removeCollaborator(collabId: string): Promise<void> {
+  if (BASE) {
+    await http<void>(`/collaborators/${collabId}`, { method: "DELETE" });
+    return;
+  }
+  await delay(220);
+  collabs = ensureCollabs().filter((c) => c.id !== collabId);
+  persistCollabs();
+}
+
+export async function listShareLinks(): Promise<ShareLink[]> {
+  if (BASE) return http<ShareLink[]>("/share-links");
+  await delay(240);
+  return clone(ensureLinks());
+}
+
+export async function createShareLink(input: {
+  target: ShareTarget;
+  label: string;
+  permission: "view" | "edit";
+  expiresInDays?: number | undefined;
+}): Promise<ShareLink> {
+  if (BASE)
+    return http<ShareLink>("/share-links", { method: "POST", body: JSON.stringify(input) });
+  await delay(340);
+  const link: ShareLink = {
+    id: `sl-${Math.random().toString(36).slice(2, 8)}`,
+    target: input.target,
+    label: input.label,
+    permission: input.permission,
+    token: Math.random().toString(36).slice(2, 10),
+    ...(input.expiresInDays
+      ? { expiresAtISO: new Date(Date.now() + input.expiresInDays * 86_400_000).toISOString() }
+      : {}),
+    revoked: false,
+    createdAtISO: new Date().toISOString(),
+  };
+  ensureLinks().unshift(link);
+  persistLinks();
+  return clone(link);
+}
+
+export async function revokeShareLink(linkId: string): Promise<ShareLink | null> {
+  if (BASE) return http<ShareLink>(`/share-links/${linkId}/revoke`, { method: "POST" });
+  await delay(220);
+  const link = ensureLinks().find((l) => l.id === linkId);
+  if (!link) return null;
+  link.revoked = true;
+  persistLinks();
+  return clone(link);
+}
