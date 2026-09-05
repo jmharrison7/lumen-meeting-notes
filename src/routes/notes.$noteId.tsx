@@ -124,7 +124,7 @@ function NoteDetail() {
   const md = noteToMarkdown(n, client?.name ?? "Client");
 
   return (
-    <article className="animate-[rise_200ms_ease-out] space-y-10">
+    <article className="animate-[rise_200ms_ease-out] space-y-10 pb-16 md:pb-0">
       <Link
         to="/notes"
         className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-ember"
@@ -148,7 +148,7 @@ function NoteDetail() {
         </div>
         <p className="text-xs text-muted-foreground">{n.attendees.join(" · ")}</p>
 
-        <div className="flex flex-wrap gap-2 pt-1">
+        <div className="hidden flex-wrap gap-2 pt-1 md:flex">
           <Action onClick={() => setReviewed(n.id, !isReviewed)} active={isReviewed}>
             <Check className="size-3.5" /> {isReviewed ? "Reviewed" : "Mark reviewed"}
           </Action>
@@ -323,6 +323,46 @@ function NoteDetail() {
           </div>
         </DialogContent>
       </Dialog>
+      {/* Mobile sticky action bar, sits above the tab bar */}
+      <div className="fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] z-30 flex items-center gap-2 border-t border-hairline bg-background/95 px-3 py-2 backdrop-blur md:hidden">
+        <button
+          onClick={() => setMdOpen(true)}
+          className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-lg bg-ember px-3 text-sm font-medium text-[oklch(0.99_0.005_85)]"
+        >
+          <Copy className="size-4" /> Copy markdown
+        </button>
+        <button
+          onClick={() => setReviewed(n.id, !isReviewed)}
+          aria-label={isReviewed ? "Mark not reviewed" : "Mark reviewed"}
+          className={cn(
+            "grid size-11 place-items-center rounded-lg border border-border",
+            isReviewed && "border-ember text-ember",
+          )}
+        >
+          <Check className="size-4" />
+        </button>
+        <button
+          onClick={() => download(`${n.id}.md`, md)}
+          aria-label="Export note"
+          className="grid size-11 place-items-center rounded-lg border border-border"
+        >
+          <FileDown className="size-4" />
+        </button>
+        <button
+          onClick={() => download(`${n.id}-transcript.txt`, n.transcript)}
+          aria-label="Download transcript"
+          className="grid size-11 place-items-center rounded-lg border border-border"
+        >
+          <Download className="size-4" />
+        </button>
+        <button
+          onClick={() => void remove()}
+          aria-label="Delete note"
+          className="grid size-11 place-items-center rounded-lg border border-border text-destructive"
+        >
+          <Trash2 className="size-4" />
+        </button>
+      </div>
     </article>
   );
 }

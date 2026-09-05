@@ -5,6 +5,7 @@ import { listActionItems, listClients, listNotes, listTodayEvents } from "@/lib/
 import { dueBucket, formatTime } from "@/lib/format";
 import { ClientChip, EmptyState, ListSkeleton, PlatformBadge, SectionTitle } from "@/components/lumen/primitives";
 import { NoteRow } from "@/components/lumen/NoteRow";
+import { InstallHint } from "@/components/lumen/InstallHint";
 import { useUi } from "@/lib/ui-store";
 
 export const Route = createFileRoute("/")({
@@ -63,6 +64,8 @@ function TodayPage() {
           Three calls on the calendar today. Everything else is already written up.
         </p>
       </header>
+
+      <InstallHint className="md:hidden" />
 
       <section className="space-y-3">
         <SectionTitle>Today's meetings</SectionTitle>
