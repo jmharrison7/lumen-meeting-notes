@@ -52,6 +52,7 @@ function TodayPage() {
     upcoming: open.filter((a) => ["week", "later"].includes(dueBucket(a.dueDate))).length,
   };
 
+  const recentIdeas = (ideas.data ?? []).slice(0, 3);
   const latest = (notes.data ?? [])
     .filter((n) => !hiddenNotes.includes(n.id))
     .sort((a, b) => b.date.localeCompare(a.date))
