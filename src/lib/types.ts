@@ -4,8 +4,8 @@ export interface Client {
   id: string;
   name: string;
   tagColor: TagColor;
-  meetingsThisMonth?: number;
-  lastMeetingAt?: string;
+  meetingsThisMonth?: number | undefined;
+  lastMeetingAt?: string | undefined;
 }
 
 export type Priority = "low" | "medium" | "high";
@@ -17,10 +17,10 @@ export interface ActionItem {
   clientId: string;
   text: string;
   owner: string;
-  dueDate?: string;
+  dueDate?: string | undefined;
   priority: Priority;
   done: boolean;
-  syncedToTeamwork?: boolean;
+  syncedToTeamwork?: boolean | undefined;
 }
 
 export type Platform = "meet" | "zoom";
@@ -45,7 +45,7 @@ export interface Note {
 export interface CalendarEvent {
   id: string;
   title: string;
-  clientId?: string;
+  clientId?: string | undefined;
   start: string;
   end: string;
   platform: Platform;
