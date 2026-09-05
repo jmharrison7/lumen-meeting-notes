@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { useUi } from "@/lib/ui-store";
-import { listNotes } from "@/lib/api";
+import { getLiveSession, listNotes } from "@/lib/api";
 import { MobileTabBar } from "./MobileTabBar";
 import { InstallHint } from "./InstallHint";
 
@@ -77,6 +77,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [navigate]);
 
   const { data: notes } = useQuery({ queryKey: ["notes"], queryFn: listNotes });
+  const { data: live } = useQuery({ queryKey: ["live"], queryFn: getLiveSession });
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -191,6 +192,16 @@ export function AppShell({ children }: { children: ReactNode }) {
         <CommandList>
           <CommandEmpty>Nothing matches that.</CommandEmpty>
           <CommandGroup heading="Commands">
+            {live ? (
+              <CommandItem
+                onSelect={() => {
+                  setPaletteOpen(false);
+                  void navigate({ to: "/live/$sessionId", params: { sessionId: live.id } });
+                }}
+              >
+                Open live note — {live.title}
+              </CommandItem>
+            ) : null}
             <CommandItem
               onSelect={() => {
                 toggleTheme();
