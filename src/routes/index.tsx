@@ -64,6 +64,8 @@ function TodayPage() {
         </p>
       </header>
 
+      <InstallHint className="md:hidden" />
+
       <section className="space-y-3">
         <SectionTitle>Today's meetings</SectionTitle>
         {events.isLoading ? (
