@@ -34,16 +34,41 @@ export function Tag({ children }: { children: ReactNode }) {
   );
 }
 
+const platformMeta: Record<Platform, { label: string; dot: string }> = {
+  "google-meet": { label: "Google Meet", dot: "bg-[oklch(0.6_0.15_150)]" },
+  zoom: { label: "Zoom", dot: "bg-[oklch(0.6_0.13_250)]" },
+  "in-person": { label: "In person", dot: "bg-[oklch(0.62_0.12_60)]" },
+};
+
 export function PlatformBadge({ platform }: { platform: Platform }) {
+  const meta = platformMeta[platform];
   return (
     <span className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-surface px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-      <span
-        className={cn(
-          "size-1.5 rounded-full",
-          platform === "meet" ? "bg-[oklch(0.6_0.15_150)]" : "bg-[oklch(0.6_0.13_250)]",
-        )}
-      />
-      {platform === "meet" ? "Google Meet" : "Zoom"}
+      <span className={cn("size-1.5 rounded-full", meta.dot)} />
+      {meta.label}
+    </span>
+  );
+}
+
+export function DueBadge({ iso, done }: { iso?: string | undefined; done?: boolean | undefined }) {
+  if (!iso) return null;
+  const bucket = dueBucket(iso);
+  const tone =
+    done || bucket === "week" || bucket === "later"
+      ? "border-hairline text-muted-foreground"
+      : bucket === "overdue"
+        ? "border-destructive/30 bg-destructive/10 text-destructive"
+        : "border-[oklch(0.72_0.11_75)]/40 bg-[oklch(0.72_0.11_75)]/15 text-[oklch(0.45_0.1_70)] dark:text-[oklch(0.82_0.11_78)]";
+  return (
+    <span
+      title={fullDate(iso)}
+      className={cn(
+        "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[11px] font-medium",
+        tone,
+      )}
+    >
+      {bucket === "overdue" && !done ? "Overdue · " : ""}
+      {relativeDate(iso)}
     </span>
   );
 }
