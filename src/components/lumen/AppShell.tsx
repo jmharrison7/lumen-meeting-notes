@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   Bell,
+  BookUser,
   CalendarDays,
   CheckSquare,
   Circle,
@@ -39,6 +40,7 @@ const nav = [
   { to: "/clients", label: "Clients", icon: Users, exact: false },
   { to: "/ideas", label: "Ideas", icon: Lightbulb, exact: false },
   { to: "/templates", label: "Templates", icon: LayoutTemplate, exact: false },
+  { to: "/contacts", label: "Contacts", icon: BookUser, exact: false },
   { to: "/collaborators", label: "Collaborators", icon: UserCog, exact: false },
   { to: "/alerts", label: "Alerts", icon: Bell, exact: false },
   { to: "/search", label: "Search", icon: Search, exact: false },
