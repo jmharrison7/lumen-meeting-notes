@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { CheckSquare } from "lucide-react";
 import { ClientChip, Tag } from "./primitives";
-import { formatDate, formatDuration } from "@/lib/format";
+import { formatDuration, fullDate, relativeDate } from "@/lib/format";
 import type { Client, Note } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
