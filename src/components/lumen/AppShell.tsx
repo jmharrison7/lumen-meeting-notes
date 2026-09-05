@@ -48,6 +48,8 @@ function todayLabel() {
 export function AppShell({ children }: { children: ReactNode }) {
   const { theme, toggleTheme } = useUi();
   const [open, setOpen] = useState(false);
+  const [today, setToday] = useState("");
+  useEffect(() => setToday(todayLabel()), []);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -109,7 +111,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <X className="size-4" />
           </button>
         </div>
-        <p className="px-5 pb-5 text-xs text-muted-foreground">{todayLabel()}</p>
+        <p className="px-5 pb-5 text-xs text-muted-foreground">{today || "\u00a0"}</p>
 
         <nav className="flex flex-col gap-0.5 px-3">
           {nav.map((n) => (
