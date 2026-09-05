@@ -103,73 +103,27 @@ export function ShareRecapDialog({
 
         <div className="max-h-[60vh] space-y-5 overflow-y-auto pr-1">
           <section className="space-y-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Recipients
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {attendees.map((a) => (
-                <button
-                  key={a.email}
-                  onClick={() => toggle(a.email)}
-                  aria-pressed={selected.includes(a.email)}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors",
-                    selected.includes(a.email)
-                      ? "border-ember/40 bg-ember-soft text-ember"
-                      : "border-hairline hover:bg-accent",
-                  )}
-                >
-                  {selected.includes(a.email) ? <Check className="size-3" /> : null}
-                  {a.name}
-                </button>
-              ))}
-              {extra.map((e) => (
-                <span
-                  key={e}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-ember/40 bg-ember-soft px-3 py-1.5 text-xs text-ember"
-                >
-                  {e}
-                  <button onClick={() => setExtra((x) => x.filter((v) => v !== e))} aria-label={`Remove ${e}`}>
-                    ×
-                  </button>
-                </span>
-              ))}
-              <button
-                onClick={() => setIncludeTeam((v) => !v)}
-                aria-pressed={includeTeam}
-                className={cn(
-                  "rounded-full border px-3 py-1.5 text-xs transition-colors",
-                  includeTeam ? "border-ember/40 bg-ember-soft text-ember" : "border-hairline hover:bg-accent",
-                )}
-              >
-                Team · {TEAM_ALIAS}
-              </button>
-            </div>
-            <div className="flex gap-2">
-              <input
-                value={manual}
-                onChange={(e) => setManual(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addManual();
-                  }
-                }}
-                placeholder="Add someone else — name@company.com"
-                aria-label="Add another recipient"
-                className="min-h-[44px] flex-1 rounded-lg border border-hairline bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-              />
-              <button
-                onClick={addManual}
-                className="rounded-lg border border-border px-3 text-sm hover:bg-accent"
-              >
-                Add
-              </button>
-            </div>
+            <RecipientField
+              value={value}
+              onChange={setRecipients}
+              clientId={note.clientId}
+              label="Recipients"
+            />
+            <button
+              onClick={() => setIncludeTeam((v) => !v)}
+              aria-pressed={includeTeam}
+              className={cn(
+                "rounded-full border px-3 py-1.5 text-xs transition-colors",
+                includeTeam ? "border-ember/40 bg-ember-soft text-ember" : "border-hairline hover:bg-accent",
+              )}
+            >
+              Team · {TEAM_ALIAS}
+            </button>
             {channel === "email" && !canSend ? (
               <p className="text-xs text-destructive">Pick at least one recipient to send this recap.</p>
             ) : null}
           </section>
+
 
           <section className="space-y-2">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
