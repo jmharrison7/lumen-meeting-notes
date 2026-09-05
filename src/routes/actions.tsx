@@ -66,6 +66,7 @@ function ActionsPage() {
   const clientOf = (id: string) => clients.data?.find((c) => c.id === id);
 
   async function toggle(item: ActionItem) {
+    if (!canEdit) return;
     patchItem(item.id, { done: !item.done });
     await updateActionItem(item.id, { done: !item.done });
   }
@@ -137,6 +138,8 @@ function ActionsPage() {
                       clientName={clientOf(a.clientId)?.name}
                       color={clientOf(a.clientId)?.tagColor}
                       onToggle={() => void toggle(a)}
+                    readOnly={!canEdit}
+                      readOnly={!canEdit}
                       overdue={g.key === "overdue"}
                     />
                   ))}
@@ -172,12 +175,14 @@ function Card({
   clientName,
   color,
   onToggle,
+  readOnly,
   overdue,
 }: {
   item: ActionItem;
   clientName?: string | undefined;
   color?: import("@/lib/types").TagColor | undefined;
   onToggle: () => void;
+  readOnly?: boolean;
   overdue?: boolean | undefined;
 }) {
   return (
@@ -192,6 +197,7 @@ function Card({
         type="checkbox"
         checked={item.done}
         onChange={onToggle}
+        disabled={readOnly}
         aria-label={`Mark "${item.text}" ${item.done ? "not done" : "done"}`}
         className="mt-0.5 size-4 accent-[oklch(0.53_0.145_42)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
       />

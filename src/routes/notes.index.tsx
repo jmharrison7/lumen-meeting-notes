@@ -134,7 +134,7 @@ function NotesPage() {
         </button>
       </div>
 
-      {selected.length > 0 ? (
+      {selected.length > 0 && canEdit ? (
         <div className="animate-[rise_180ms_ease-out] flex items-center gap-3 rounded-lg border border-ember/40 bg-ember-soft/60 px-4 py-2.5 text-sm">
           <span className="font-medium text-ember">{selected.length} selected</span>
           <button
