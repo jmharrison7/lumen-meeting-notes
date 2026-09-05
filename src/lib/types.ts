@@ -215,3 +215,32 @@ export interface BrandDNA {
   tone: string;
   updatedAtISO: string;
 }
+
+/* ------------------------------ Sharing & access ------------------------------ */
+
+export type CollaboratorRole = "viewer" | "editor";
+
+export interface Collaborator {
+  id: string;
+  email: string;
+  name?: string | undefined;
+  role: CollaboratorRole;
+  /** Clients this person has been granted. */
+  clientIds: string[];
+  status: "invited" | "active";
+  lastActiveAt?: string | undefined;
+  invitedAtISO: string;
+}
+
+export type ShareTarget = { type: "note" | "client" | "file"; id: string };
+
+export interface ShareLink {
+  id: string;
+  target: ShareTarget;
+  label: string;
+  permission: "view" | "edit";
+  token: string;
+  expiresAtISO?: string | undefined;
+  revoked: boolean;
+  createdAtISO: string;
+}

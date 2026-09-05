@@ -12,3 +12,5 @@
 - Ideas capture (voice, upload, typed) with filters, detail view and Today strip.
 - Client-scoped Ideas tab, suggested-client routing on confirm, and inline new-client creation from capture.
 - Per-client Brand DNA hub (voice, always/never, tone, Drive references).
+
+- [x] Sharing & access: collaborators, per-client Access tab, Preview-as simulator, one-off share links

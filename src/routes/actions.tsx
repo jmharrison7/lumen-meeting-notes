@@ -13,6 +13,7 @@ import {
   SectionTitle,
 } from "@/components/lumen/primitives";
 import { useUi } from "@/lib/ui-store";
+import { useAccess } from "@/lib/access-store";
 import { cn } from "@/lib/utils";
 import type { ActionItem } from "@/lib/types";
 
@@ -44,12 +45,16 @@ const groups = [
 
 function ActionsPage() {
   const { applyItem, patchItem } = useUi();
+  const { canSeeClient, canEdit } = useAccess();
   const items = useQuery({ queryKey: ["actionItems"], queryFn: listActionItems });
   const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
   const [clientFilter, setClientFilter] = useState("all");
   const [ownerFilter, setOwnerFilter] = useState("all");
 
-  const all = useMemo(() => (items.data ?? []).map(applyItem), [items.data, applyItem]);
+  const all = useMemo(
+    () => (items.data ?? []).map(applyItem).filter((a) => canSeeClient(a.clientId)),
+    [items.data, applyItem, canSeeClient],
+  );
   const owners = useMemo(() => [...new Set(all.map((a) => a.owner))].sort(), [all]);
 
   const filtered = all.filter(
@@ -61,6 +66,7 @@ function ActionsPage() {
   const clientOf = (id: string) => clients.data?.find((c) => c.id === id);
 
   async function toggle(item: ActionItem) {
+    if (!canEdit) return;
     patchItem(item.id, { done: !item.done });
     await updateActionItem(item.id, { done: !item.done });
   }
@@ -132,6 +138,7 @@ function ActionsPage() {
                       clientName={clientOf(a.clientId)?.name}
                       color={clientOf(a.clientId)?.tagColor}
                       onToggle={() => void toggle(a)}
+                      readOnly={!canEdit}
                       overdue={g.key === "overdue"}
                     />
                   ))}
@@ -151,6 +158,7 @@ function ActionsPage() {
                     clientName={clientOf(a.clientId)?.name}
                     color={clientOf(a.clientId)?.tagColor}
                     onToggle={() => void toggle(a)}
+                    readOnly={!canEdit}
                   />
                 ))}
               </div>
@@ -167,12 +175,14 @@ function Card({
   clientName,
   color,
   onToggle,
+  readOnly,
   overdue,
 }: {
   item: ActionItem;
   clientName?: string | undefined;
   color?: import("@/lib/types").TagColor | undefined;
   onToggle: () => void;
+  readOnly?: boolean;
   overdue?: boolean | undefined;
 }) {
   return (
@@ -187,6 +197,7 @@ function Card({
         type="checkbox"
         checked={item.done}
         onChange={onToggle}
+        disabled={readOnly}
         aria-label={`Mark "${item.text}" ${item.done ? "not done" : "done"}`}
         className="mt-0.5 size-4 accent-[oklch(0.53_0.145_42)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
       />

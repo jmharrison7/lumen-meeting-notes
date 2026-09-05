@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft, Link2, Sparkles } from "lucide-react";
 import { listClients, listIdeas, listNotes } from "@/lib/api";
 import { EmptyState, ErrorState, ListSkeleton } from "@/components/lumen/primitives";
 import { NoteRow } from "@/components/lumen/NoteRow";
@@ -11,6 +11,9 @@ import { AskPanel } from "@/components/lumen/AskPanel";
 import { BrandDnaPanel } from "@/components/lumen/BrandDnaPanel";
 import { QuickCapture } from "@/components/lumen/QuickCapture";
 import { IdeasGrid } from "@/components/lumen/IdeasGrid";
+import { AccessPanel } from "@/components/lumen/AccessPanel";
+import { ShareLinkDialog } from "@/components/lumen/ShareLinkDialog";
+import { useAccess } from "@/lib/access-store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/clients/$clientId")({
@@ -31,11 +34,15 @@ export const Route = createFileRoute("/clients/$clientId")({
   component: ClientDetail,
 });
 
-const tabs = ["Notes", "Ideas", "Files", "Brand DNA", "Templates", "Ask"] as const;
+const allTabs = ["Notes", "Ideas", "Files", "Brand DNA", "Templates", "Ask", "Access"] as const;
+type Tab = (typeof allTabs)[number];
 
 function ClientDetail() {
   const { clientId } = Route.useParams();
-  const [tab, setTab] = useState<(typeof tabs)[number]>("Notes");
+  const [tab, setTab] = useState<Tab>("Notes");
+  const [shareOpen, setShareOpen] = useState(false);
+  const { isOwner, canSeeClient } = useAccess();
+  const tabs = allTabs.filter((t) => isOwner || !["Templates", "Access"].includes(t));
   const [askOpen, setAskOpen] = useState(false);
   const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
   const notes = useQuery({ queryKey: ["notes"], queryFn: listNotes });
@@ -46,6 +53,16 @@ function ClientDetail() {
   const clientNotes = (notes.data ?? [])
     .filter((n) => n.clientId === clientId)
     .sort((a, b) => b.date.localeCompare(a.date));
+
+  if (!canSeeClient(clientId))
+    return (
+      <div className="rounded-xl border border-hairline bg-card px-6 py-14 text-center">
+        <p className="text-title text-xl">This client isn't shared with you</p>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          Ask Mary to add you from the client's Access tab.
+        </p>
+      </div>
+    );
 
   return (
     <div className="space-y-6">
@@ -65,12 +82,22 @@ function ClientDetail() {
           Notes, working documents and templates in one place.
         </p>
         </div>
-        <button
-          onClick={() => setAskOpen(true)}
-          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-hairline bg-card px-3 text-sm transition-colors hover:border-ember/40 hover:bg-ember-soft hover:text-ember"
-        >
-          <Sparkles className="size-4" /> Ask Lumen
-        </button>
+        <div className="flex flex-wrap gap-2">
+          {isOwner ? (
+            <button
+              onClick={() => setShareOpen(true)}
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-hairline bg-card px-3 text-sm transition-colors hover:border-ember/40 hover:bg-ember-soft hover:text-ember"
+            >
+              <Link2 className="size-4" /> Share link…
+            </button>
+          ) : null}
+          <button
+            onClick={() => setAskOpen(true)}
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-hairline bg-card px-3 text-sm transition-colors hover:border-ember/40 hover:bg-ember-soft hover:text-ember"
+          >
+            <Sparkles className="size-4" /> Ask Lumen
+          </button>
+        </div>
       </header>
 
       <div role="tablist" aria-label="Client sections" className="flex gap-1 border-b border-hairline">
@@ -133,6 +160,8 @@ function ClientDetail() {
         <BrandDnaPanel clientId={clientId} />
       ) : tab === "Templates" ? (
         <TemplatesPanel clientId={clientId} />
+      ) : tab === "Access" ? (
+        <AccessPanel clientId={clientId} clientName={client?.name ?? "this client"} />
       ) : (
         <div className="rounded-xl border border-hairline bg-card p-6">
           <p className="text-title text-lg">Ask Lumen about {client?.name ?? "this client"}</p>
@@ -147,6 +176,13 @@ function ClientDetail() {
           </button>
         </div>
       )}
+
+      <ShareLinkDialog
+        target={{ type: "client", id: clientId }}
+        label={`${client?.name ?? "Client"} — workspace`}
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+      />
 
       <AskPanel
         scope={{

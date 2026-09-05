@@ -4,6 +4,7 @@ import { listClients, listNotes } from "@/lib/api";
 import { fullDate, relativeDate, tagStyles } from "@/lib/format";
 import { EmptyState, ErrorState } from "@/components/lumen/primitives";
 import { cn } from "@/lib/utils";
+import { useAccess } from "@/lib/access-store";
 
 export const Route = createFileRoute("/clients/")({
   head: () => ({
@@ -24,7 +25,12 @@ export const Route = createFileRoute("/clients/")({
 });
 
 function ClientsPage() {
-  const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
+  const { canSeeClient } = useAccess();
+  const clientsQuery = useQuery({ queryKey: ["clients"], queryFn: listClients });
+  const clients = {
+    ...clientsQuery,
+    data: (clientsQuery.data ?? []).filter((c) => canSeeClient(c.id)),
+  };
   const notes = useQuery({ queryKey: ["notes"], queryFn: listNotes });
 
   const latestFor = (id: string) =>

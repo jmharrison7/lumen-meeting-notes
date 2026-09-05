@@ -14,6 +14,7 @@ import {
   Search,
   Sun,
   Users,
+  UserCog,
   X,
 } from "lucide-react";
 import {
@@ -27,6 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useUi } from "@/lib/ui-store";
 import { getLiveSession, listNotes } from "@/lib/api";
+import { useAccess } from "@/lib/access-store";
 import { MobileTabBar } from "./MobileTabBar";
 import { InstallHint } from "./InstallHint";
 
@@ -37,6 +39,7 @@ const nav = [
   { to: "/clients", label: "Clients", icon: Users, exact: false },
   { to: "/ideas", label: "Ideas", icon: Lightbulb, exact: false },
   { to: "/templates", label: "Templates", icon: LayoutTemplate, exact: false },
+  { to: "/collaborators", label: "Collaborators", icon: UserCog, exact: false },
   { to: "/alerts", label: "Alerts", icon: Bell, exact: false },
   { to: "/search", label: "Search", icon: Search, exact: false },
 ] as const;
@@ -84,6 +87,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [navigate]);
 
+  const { previewing, collaborators, previewAs, isOwner } = useAccess();
+  const visibleNav = nav.filter(
+    (n) => isOwner || !["/templates", "/alerts", "/collaborators"].includes(n.to),
+  );
+
   const { data: notes } = useQuery({ queryKey: ["notes"], queryFn: listNotes });
   const { data: live } = useQuery({ queryKey: ["live"], queryFn: getLiveSession });
 
@@ -118,7 +126,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <p className="px-5 pb-5 text-xs text-muted-foreground">{today || "\u00a0"}</p>
 
         <nav className="flex flex-col gap-0.5 px-3">
-          {nav.map((n) => (
+          {visibleNav.map((n) => (
             <Link
               key={n.to}
               to={n.to}
@@ -151,8 +159,23 @@ export function AppShell({ children }: { children: ReactNode }) {
               M
             </span>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">Mary</p>
-              <p className="truncate text-[11px] text-muted-foreground">Studio settings</p>
+              <p className="truncate text-sm font-medium">{previewing?.name ?? previewing?.email ?? "Mary"}</p>
+              <label className="sr-only" htmlFor="preview-as">
+                Preview as
+              </label>
+              <select
+                id="preview-as"
+                value={previewing?.id ?? "owner"}
+                onChange={(e) => previewAs(e.target.value === "owner" ? null : e.target.value)}
+                className="w-full truncate bg-transparent text-[11px] text-muted-foreground focus-visible:outline-none"
+              >
+                <option value="owner">Owner view</option>
+                {collaborators.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    Preview as {c.name ?? c.email}
+                  </option>
+                ))}
+              </select>
             </div>
             <button
               onClick={toggleTheme}
@@ -187,6 +210,21 @@ export function AppShell({ children }: { children: ReactNode }) {
             {theme === "light" ? <Moon className="size-4" /> : <Sun className="size-4" />}
           </button>
         </header>
+        {previewing ? (
+          <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b border-ember/30 bg-ember-soft px-4 py-2 text-xs text-ember md:px-10">
+            <span>
+              Previewing as {previewing.name ?? previewing.email} (
+              {previewing.role === "editor" ? "Editor" : "Viewer"}) —{" "}
+              {previewing.clientIds.length} client{previewing.clientIds.length === 1 ? "" : "s"}
+            </span>
+            <button
+              onClick={() => previewAs(null)}
+              className="ml-auto rounded-full border border-ember/40 px-2.5 py-1 font-medium transition-colors hover:bg-ember hover:text-[oklch(0.99_0.005_85)]"
+            >
+              Exit preview
+            </button>
+          </div>
+        ) : null}
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-28 pt-6 md:px-10 md:py-12 md:pb-12">
           {children}
         </main>

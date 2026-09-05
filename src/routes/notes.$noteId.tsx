@@ -12,6 +12,7 @@ import {
   MessageCircleQuestion,
   Send,
   Trash2,
+  Link2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { deleteNotes, getNote, listClients, updateActionItem } from "@/lib/api";
@@ -42,6 +43,7 @@ import {
   relativeDate,
 } from "@/lib/format";
 import { useUi } from "@/lib/ui-store";
+import { useAccess } from "@/lib/access-store";
 import { cn } from "@/lib/utils";
 import type { ActionItem } from "@/lib/types";
 import { FollowUpDialog } from "@/components/lumen/FollowUpDialog";
@@ -49,6 +51,7 @@ import { MentionBanner } from "@/components/lumen/Mentions";
 import { PlaybackBar, TimeChip } from "@/components/lumen/PlaybackBar";
 import { ShareRecapDialog } from "@/components/lumen/ShareRecapDialog";
 import { AskPanel } from "@/components/lumen/AskPanel";
+import { ShareLinkDialog } from "@/components/lumen/ShareLinkDialog";
 
 export const Route = createFileRoute("/notes/$noteId")({
   head: () => ({
@@ -74,6 +77,8 @@ function NoteDetail() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { applyItem, patchItem, reviewed, setReviewed, hideNotes, shared } = useUi();
+  const { canEdit, canSeeClient, isOwner } = useAccess();
+  const [linkOpen, setLinkOpen] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
   const [editing, setEditing] = useState(false);
   const [mdOpen, setMdOpen] = useState(false);
@@ -133,10 +138,12 @@ function NoteDetail() {
     );
 
   const client = clients.data?.find((c) => c.id === n.clientId);
+  const visible = canSeeClient(n.clientId);
   const isReviewed = reviewed[n.id] ?? n.reviewed;
   const items = n.actionItems.map(applyItem);
 
   async function toggleItem(item: ActionItem) {
+    if (!canEdit) return;
     patchItem(item.id, { done: !item.done });
     await updateActionItem(item.id, { done: !item.done });
   }
@@ -153,6 +160,16 @@ function NoteDetail() {
     toast.success("Note deleted");
     void navigate({ to: "/notes" });
   }
+
+  if (!visible)
+    return (
+      <div className="rounded-xl border border-hairline bg-card px-6 py-14 text-center">
+        <p className="text-title text-xl">This note isn't shared with you</p>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          It belongs to a client outside your access.
+        </p>
+      </div>
+    );
 
   const md = noteToMarkdown(n, client?.name ?? "Client");
   const lines = parseTranscriptLines(n.transcript);
@@ -191,21 +208,34 @@ function NoteDetail() {
         <p className="text-xs text-muted-foreground">{n.attendees.join(" · ")}</p>
 
         <div className="hidden flex-wrap gap-2 pt-1 md:flex">
-          <Action onClick={() => setReviewed(n.id, !isReviewed)} active={isReviewed}>
-            <Check className="size-3.5" /> {isReviewed ? "Reviewed" : "Mark reviewed"}
-          </Action>
-          <Action onClick={() => setEditing((v) => !v)} active={editing}>
-            {editing ? "Done editing" : "Edit inline"}
-          </Action>
+          {canEdit ? (
+            <>
+              <Action onClick={() => setReviewed(n.id, !isReviewed)} active={isReviewed}>
+                <Check className="size-3.5" /> {isReviewed ? "Reviewed" : "Mark reviewed"}
+              </Action>
+              <Action onClick={() => setEditing((v) => !v)} active={editing}>
+                {editing ? "Done editing" : "Edit inline"}
+              </Action>
+            </>
+          ) : null}
           <Action onClick={() => setMdOpen(true)}>
             <Copy className="size-3.5" /> Copy markdown
           </Action>
-          <Action onClick={() => setFollowUpOpen(true)}>
-            <Mail className="size-3.5" /> Draft follow-up
-          </Action>
-          <Action onClick={() => setShareOpen(true)}>
-            <Send className="size-3.5" /> Share recap
-          </Action>
+          {canEdit ? (
+            <>
+              <Action onClick={() => setFollowUpOpen(true)}>
+                <Mail className="size-3.5" /> Draft follow-up
+              </Action>
+              <Action onClick={() => setShareOpen(true)}>
+                <Send className="size-3.5" /> Share recap
+              </Action>
+            </>
+          ) : null}
+          {isOwner ? (
+            <Action onClick={() => setLinkOpen(true)}>
+              <Link2 className="size-3.5" /> Share link…
+            </Action>
+          ) : null}
           <Action onClick={() => setAskOpen(true)}>
             <MessageCircleQuestion className="size-3.5" /> Ask about this meeting
           </Action>
@@ -215,9 +245,11 @@ function NoteDetail() {
           <Action onClick={() => download(`${n.id}-transcript.txt`, n.transcript)}>
             <Download className="size-3.5" /> Transcript
           </Action>
-          <Action onClick={() => void remove()} danger>
-            <Trash2 className="size-3.5" /> Delete
-          </Action>
+          {isOwner ? (
+            <Action onClick={() => void remove()} danger>
+              <Trash2 className="size-3.5" /> Delete
+            </Action>
+          ) : null}
         </div>
       </header>
 
@@ -277,6 +309,7 @@ function NoteDetail() {
                 type="checkbox"
                 checked={a.done}
                 onChange={() => void toggleItem(a)}
+                disabled={!canEdit}
                 aria-label={`Mark "${a.text}" ${a.done ? "not done" : "done"}`}
                 className="mt-0.5 size-4 accent-[oklch(0.53_0.145_42)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
               />
@@ -291,7 +324,8 @@ function NoteDetail() {
                   <input
                     value={a.owner}
                     aria-label={`Owner for "${a.text}"`}
-                    onChange={(e) => patchItem(a.id, { owner: e.target.value })}
+                    readOnly={!canEdit}
+                    onChange={(e) => canEdit && patchItem(a.id, { owner: e.target.value })}
                     className="w-24 rounded border border-transparent bg-transparent px-1 py-0.5 outline-none hover:border-hairline focus:border-hairline"
                   />
                   <input
@@ -395,6 +429,13 @@ function NoteDetail() {
       </section>
 
       <FollowUpDialog note={n} open={followUpOpen} onOpenChange={setFollowUpOpen} />
+      <ShareLinkDialog
+        target={{ type: "note", id: n.id }}
+        label={n.title}
+        open={linkOpen}
+        onOpenChange={setLinkOpen}
+      />
+
       <ShareRecapDialog
         note={n}
         clientName={client?.name ?? "Client"}
