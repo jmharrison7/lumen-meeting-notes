@@ -16,3 +16,5 @@
 - [x] Sharing & access: collaborators, per-client Access tab, Preview-as simulator, one-off share links
 
 - [x] Address book: Contacts page, reusable recipient field (recap, follow-up, invites), auto-learn from sends/invites, suggested attendees
+
+- [x] Sign-in: magic-link screen, session check on boot, 401 drops to sign-in, sidebar sign-out

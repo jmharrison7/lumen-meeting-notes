@@ -10,14 +10,27 @@ const BASE = import.meta.env["VITE_API_URL"] as string | undefined;
 
 const delay = (ms = 320 + Math.random() * 160) => new Promise((r) => setTimeout(r, ms));
 
+export class UnauthorizedError extends Error {
+  constructor() {
+    super("Unauthorized");
+    this.name = "UnauthorizedError";
+  }
+}
+
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
+    credentials: "include",
     headers: { "content-type": "application/json" },
     ...init,
   });
+  if (res.status === 401) {
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("lumen:unauthorized"));
+    throw new UnauthorizedError();
+  }
   if (!res.ok) throw new Error(`Request failed: ${res.status}`);
   return (await res.json()) as T;
 }
+
 
 function clone<T>(v: T): T {
   return JSON.parse(JSON.stringify(v)) as T;
@@ -1360,4 +1373,54 @@ export async function suggestedContacts(): Promise<
     }
   }
   return [...out.values()].slice(0, 6);
+}
+
+/* ---------------------------------- Auth ---------------------------------- */
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export type WhoAmI =
+  | { authenticated: true; user: AuthUser; grants: string[] }
+  | { authenticated: false };
+
+let mockSignedOut = false;
+
+export async function whoAmI(): Promise<WhoAmI> {
+  if (BASE) {
+    try {
+      return await http<WhoAmI>("/auth/me");
+    } catch {
+      return { authenticated: false };
+    }
+  }
+  await delay(220);
+  if (mockSignedOut) return { authenticated: false };
+  return {
+    authenticated: true,
+    user: { id: "u-mary", name: "Mary Alcott", email: "mary@embr.studio" },
+    grants: [],
+  };
+}
+
+export async function requestMagicLink(email: string): Promise<{ ok: boolean; message: string }> {
+  if (BASE)
+    return http<{ ok: boolean; message: string }>("/auth/magic", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  await delay(500);
+  return { ok: true, message: `If ${email} belongs to Lumen, a link is on its way.` };
+}
+
+export async function signOut(): Promise<void> {
+  if (BASE) {
+    await http<void>("/auth/logout", { method: "POST" });
+    return;
+  }
+  await delay(200);
+  mockSignedOut = true;
 }

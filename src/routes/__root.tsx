@@ -14,6 +14,8 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppShell } from "@/components/lumen/AppShell";
 import { UiStateProvider } from "@/lib/ui-store";
 import { AccessProvider } from "@/lib/access-store";
+import { AuthProvider } from "@/lib/auth-store";
+import { AuthGate } from "@/components/lumen/AuthGate";
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
@@ -161,13 +163,17 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <UiStateProvider>
+        <AuthProvider>
         <AccessProvider>
+          <AuthGate>
           <AppShell>
             {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
             <Outlet />
           </AppShell>
+          </AuthGate>
           <Toaster position="top-center" />
         </AccessProvider>
+        </AuthProvider>
       </UiStateProvider>
     </QueryClientProvider>
   );

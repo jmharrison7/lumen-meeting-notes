@@ -11,7 +11,9 @@ import {
   FileText,
   LayoutTemplate,
   Lightbulb,
+  LogOut,
   Moon,
+
   Search,
   Sun,
   Users,
@@ -30,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { useUi } from "@/lib/ui-store";
 import { getLiveSession, listNotes } from "@/lib/api";
 import { useAccess } from "@/lib/access-store";
+import { useAuth } from "@/lib/auth-store";
 import { MobileTabBar } from "./MobileTabBar";
 import { InstallHint } from "./InstallHint";
 
@@ -56,6 +59,7 @@ function todayLabel() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { theme, toggleTheme } = useUi();
+  const { signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const [today, setToday] = useState("");
   useEffect(() => setToday(todayLabel()), []);
@@ -186,8 +190,17 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
               {theme === "light" ? <Moon className="size-4" /> : <Sun className="size-4" />}
             </button>
+            <button
+              onClick={() => void signOut()}
+              aria-label="Sign out"
+              title="Sign out"
+              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+            >
+              <LogOut className="size-4" />
+            </button>
           </div>
         </div>
+
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col md:pl-64">
