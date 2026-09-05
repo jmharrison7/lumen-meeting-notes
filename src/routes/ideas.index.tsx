@@ -1,11 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Trash2 } from "lucide-react";
-import { toast } from "sonner";
-import { deleteIdea, listClients, listIdeas } from "@/lib/api";
-import { fullDate, relativeDate } from "@/lib/format";
-import { ClientChip, EmptyState, ErrorState, ListSkeleton, SectionTitle } from "@/components/lumen/primitives";
+import { listClients, listIdeas } from "@/lib/api";
+import { EmptyState, ErrorState, ListSkeleton, SectionTitle } from "@/components/lumen/primitives";
+import { IdeasGrid } from "@/components/lumen/IdeasGrid";
 import { QuickCapture } from "@/components/lumen/QuickCapture";
 
 export const Route = createFileRoute("/ideas/")({
@@ -30,7 +28,6 @@ export const Route = createFileRoute("/ideas/")({
 });
 
 function IdeasPage() {
-  const qc = useQueryClient();
   const ideas = useQuery({ queryKey: ["ideas"], queryFn: listIdeas });
   const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
   const [q, setQ] = useState("");
@@ -42,7 +39,6 @@ function IdeasPage() {
     () => Array.from(new Set(all.flatMap((i) => i.tags))).sort(),
     [all],
   );
-  const clientOf = (id?: string) => (clients.data ?? []).find((c) => c.id === id);
 
   const filtered = all.filter((i) => {
     if (client === "personal" ? i.clientId : client !== "all" && i.clientId !== client) return false;
@@ -51,12 +47,6 @@ function IdeasPage() {
     if (needle && !`${i.title} ${i.transcript}`.toLowerCase().includes(needle)) return false;
     return true;
   });
-
-  async function remove(id: string) {
-    await deleteIdea(id);
-    await qc.invalidateQueries({ queryKey: ["ideas"] });
-    toast.success("Idea deleted.");
-  }
 
   return (
     <div className="space-y-8">
@@ -125,52 +115,7 @@ function IdeasPage() {
             }
           />
         ) : (
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {filtered.map((i) => {
-              const c = clientOf(i.clientId);
-              return (
-                <li
-                  key={i.id}
-                  className="group flex flex-col rounded-xl border border-hairline bg-card p-4 transition-shadow hover:shadow-soft"
-                >
-                  <div className="flex items-start gap-2">
-                    <Link
-                      to="/ideas/$ideaId"
-                      params={{ ideaId: i.id }}
-                      className="text-title min-w-0 flex-1 text-[17px] font-medium leading-snug hover:text-ember"
-                    >
-                      {i.title}
-                    </Link>
-                    <button
-                      onClick={() => void remove(i.id)}
-                      aria-label={`Delete idea ${i.title}`}
-                      className="rounded-md p-1.5 text-muted-foreground opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  </div>
-                  <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted-foreground">
-                    {i.transcript}
-                  </p>
-                  <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                    {c ? (
-                      <ClientChip name={c.name} color={c.tagColor} />
-                    ) : (
-                      <span className="rounded-full border border-hairline px-2 py-0.5">Personal</span>
-                    )}
-                    {i.tags.map((t) => (
-                      <span key={t} className="rounded-md border border-hairline bg-surface px-1.5 py-0.5">
-                        {t}
-                      </span>
-                    ))}
-                    <span className="ml-auto capitalize" title={fullDate(i.createdAtISO)}>
-                      {i.source} · {relativeDate(i.createdAtISO)}
-                    </span>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+          <IdeasGrid ideas={filtered} clients={clients.data ?? []} />
         )}
       </section>
     </div>
