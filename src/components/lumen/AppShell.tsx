@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { useUi } from "@/lib/ui-store";
 import { getLiveSession, listNotes } from "@/lib/api";
 import { useAccess } from "@/lib/access-store";
+import { useAuth } from "@/lib/auth-store";
 import { MobileTabBar } from "./MobileTabBar";
 import { InstallHint } from "./InstallHint";
 
@@ -58,6 +59,7 @@ function todayLabel() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { theme, toggleTheme } = useUi();
+  const { signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const [today, setToday] = useState("");
   useEffect(() => setToday(todayLabel()), []);
