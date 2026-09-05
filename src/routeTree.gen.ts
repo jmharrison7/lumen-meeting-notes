@@ -13,6 +13,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActionsRouteImport } from './routes/actions'
 import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as LiveIndexRouteImport } from './routes/live.index'
+import { Route as LiveSessionIdRouteImport } from './routes/live.$sessionId'
 import { Route as NotesIndexRouteImport } from './routes/notes.index'
 import { Route as NotesNoteIdRouteImport } from './routes/notes.$noteId'
 
@@ -36,6 +38,16 @@ const SearchRoute = SearchRouteImport.update({
   path: '/search',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LiveIndexRoute = LiveIndexRouteImport.update({
+  id: '/live/',
+  path: '/live/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LiveSessionIdRoute = LiveSessionIdRouteImport.update({
+  id: '/live/$sessionId',
+  path: '/live/$sessionId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const NotesIndexRoute = NotesIndexRouteImport.update({
   id: '/notes/',
   path: '/notes/',
@@ -52,7 +64,9 @@ export interface FileRoutesByFullPath {
   '/actions': typeof ActionsRoute
   '/clients': typeof ClientsRoute
   '/search': typeof SearchRoute
+  '/live/$sessionId': typeof LiveSessionIdRoute
   '/notes/$noteId': typeof NotesNoteIdRoute
+  '/live/': typeof LiveIndexRoute
   '/notes/': typeof NotesIndexRoute
 }
 export interface FileRoutesByTo {
@@ -60,7 +74,9 @@ export interface FileRoutesByTo {
   '/actions': typeof ActionsRoute
   '/clients': typeof ClientsRoute
   '/search': typeof SearchRoute
+  '/live/$sessionId': typeof LiveSessionIdRoute
   '/notes/$noteId': typeof NotesNoteIdRoute
+  '/live': typeof LiveIndexRoute
   '/notes': typeof NotesIndexRoute
 }
 export interface FileRoutesById {
@@ -69,22 +85,41 @@ export interface FileRoutesById {
   '/actions': typeof ActionsRoute
   '/clients': typeof ClientsRoute
   '/search': typeof SearchRoute
+  '/live/$sessionId': typeof LiveSessionIdRoute
   '/notes/$noteId': typeof NotesNoteIdRoute
+  '/live/': typeof LiveIndexRoute
   '/notes/': typeof NotesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/actions' | '/clients' | '/search' | '/notes/$noteId' | '/notes/'
+    | '/'
+    | '/actions'
+    | '/clients'
+    | '/search'
+    | '/live/$sessionId'
+    | '/notes/$noteId'
+    | '/live/'
+    | '/notes/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/actions' | '/clients' | '/search' | '/notes/$noteId' | '/notes'
+  to:
+    | '/'
+    | '/actions'
+    | '/clients'
+    | '/search'
+    | '/live/$sessionId'
+    | '/notes/$noteId'
+    | '/live'
+    | '/notes'
   id:
     | '__root__'
     | '/'
     | '/actions'
     | '/clients'
     | '/search'
+    | '/live/$sessionId'
     | '/notes/$noteId'
+    | '/live/'
     | '/notes/'
   fileRoutesById: FileRoutesById
 }
@@ -93,7 +128,9 @@ export interface RootRouteChildren {
   ActionsRoute: typeof ActionsRoute
   ClientsRoute: typeof ClientsRoute
   SearchRoute: typeof SearchRoute
+  LiveSessionIdRoute: typeof LiveSessionIdRoute
   NotesNoteIdRoute: typeof NotesNoteIdRoute
+  LiveIndexRoute: typeof LiveIndexRoute
   NotesIndexRoute: typeof NotesIndexRoute
 }
 
@@ -127,6 +164,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/live/': {
+      id: '/live/'
+      path: '/live'
+      fullPath: '/live/'
+      preLoaderRoute: typeof LiveIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/live/$sessionId': {
+      id: '/live/$sessionId'
+      path: '/live/$sessionId'
+      fullPath: '/live/$sessionId'
+      preLoaderRoute: typeof LiveSessionIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/notes/': {
       id: '/notes/'
       path: '/notes'
@@ -149,7 +200,9 @@ const rootRouteChildren: RootRouteChildren = {
   ActionsRoute: ActionsRoute,
   ClientsRoute: ClientsRoute,
   SearchRoute: SearchRoute,
+  LiveSessionIdRoute: LiveSessionIdRoute,
   NotesNoteIdRoute: NotesNoteIdRoute,
+  LiveIndexRoute: LiveIndexRoute,
   NotesIndexRoute: NotesIndexRoute,
 }
 export const routeTree = rootRouteImport
