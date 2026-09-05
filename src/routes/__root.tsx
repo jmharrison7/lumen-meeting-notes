@@ -90,7 +90,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      {
+        name: "viewport",
+        content: "width=device-width, initial-scale=1, viewport-fit=cover",
+      },
       { title: "Lumen — calm AI meeting notes" },
       {
         name: "description",
@@ -98,6 +101,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "Lumen turns your Meet and Zoom calls into structured, searchable meeting notes with action items you can actually act on.",
       },
       { name: "author", content: "Lumen" },
+      { name: "theme-color", content: "#FAF9F6" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "default" },
+      { name: "apple-mobile-web-app-title", content: "Lumen" },
       { property: "og:title", content: "Lumen — calm AI meeting notes" },
       {
         property: "og:description",
@@ -111,6 +119,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
+      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png", sizes: "180x180" },
+      { rel: "icon", type: "image/png", href: "/favicon.png" },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
   }),
