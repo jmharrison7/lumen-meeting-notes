@@ -7,7 +7,6 @@ import {
   Circle,
   Command as CommandIcon,
   FileText,
-  Menu,
   Moon,
   Search,
   Sun,
