@@ -8,3 +8,6 @@
 - Ask Lumen — per-client and per-note chat panel with grounded answers, citations, suggested questions, per-scope thread history.
 - Timestamped playback — timestamp chips on decisions/actions/questions/transcript lines + sticky demo playback bar.
 - Share recap — neutral recap modal with recipients, email/link/text channels and a persistent Shared chip.
+
+- Ideas capture (voice, upload, typed) with filters, detail view and Today strip.
+- Per-client Brand DNA hub (voice, always/never, tone, Drive references).
