@@ -157,3 +157,19 @@
   font-family: var(--font-serif);
   letter-spacing: -0.015em;
 }
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+@utility mb-safe {
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@utility bottom-safe {
+  bottom: env(safe-area-inset-bottom, 0px);
+}
