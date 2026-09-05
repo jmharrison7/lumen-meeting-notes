@@ -1194,3 +1194,170 @@ export async function revokeShareLink(linkId: string): Promise<ShareLink | null>
   persistLinks();
   return clone(link);
 }
+
+/* --------------------------------- Contacts --------------------------------- */
+
+import { seedContacts } from "./contacts-mock";
+import type { Contact, ContactRole } from "./types";
+
+const CONTACTS_KEY = "lumen.contacts.v1";
+const DISMISSED_KEY = "lumen.contacts.dismissed.v1";
+
+let contacts: Contact[] | null = null;
+
+function ensureContacts(): Contact[] {
+  if (contacts) return contacts;
+  contacts = clone(seedContacts);
+  if (typeof window !== "undefined") {
+    try {
+      const raw = window.localStorage.getItem(CONTACTS_KEY);
+      if (raw) contacts = JSON.parse(raw) as Contact[];
+    } catch {
+      /* ignore malformed storage */
+    }
+  }
+  return contacts;
+}
+
+function persistContacts() {
+  if (typeof window === "undefined" || !contacts) return;
+  window.localStorage.setItem(CONTACTS_KEY, JSON.stringify(contacts));
+}
+
+export function dismissedSuggestions(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    return JSON.parse(window.localStorage.getItem(DISMISSED_KEY) ?? "[]") as string[];
+  } catch {
+    return [];
+  }
+}
+
+export function dismissSuggestion(name: string) {
+  if (typeof window === "undefined") return;
+  const next = [...new Set([...dismissedSuggestions(), name])];
+  window.localStorage.setItem(DISMISSED_KEY, JSON.stringify(next));
+}
+
+export async function listContacts(clientId?: string): Promise<Contact[]> {
+  if (BASE)
+    return http<Contact[]>(`/contacts${clientId ? `?client=${encodeURIComponent(clientId)}` : ""}`);
+  await delay(150);
+  const rows = ensureContacts();
+  const filtered = clientId ? rows.filter((c) => c.clientId === clientId) : rows;
+  return clone([...filtered].sort((a, b) => a.name.localeCompare(b.name)));
+}
+
+export async function searchContacts(q: string, clientId?: string): Promise<Contact[]> {
+  if (BASE)
+    return http<Contact[]>(
+      `/contacts/search?q=${encodeURIComponent(q)}${clientId ? `&client=${encodeURIComponent(clientId)}` : ""}`,
+    );
+  await delay(150);
+  const needle = q.trim().toLowerCase();
+  const rows = ensureContacts().filter(
+    (c) =>
+      !needle ||
+      c.name.toLowerCase().includes(needle) ||
+      c.email.toLowerCase().includes(needle),
+  );
+  const rank = (c: Contact) => (clientId && c.clientId === clientId ? 0 : 1);
+  return clone([...rows].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name)));
+}
+
+export async function createContact(input: {
+  name: string;
+  email: string;
+  company?: string | undefined;
+  clientId?: string | undefined;
+  role?: ContactRole | undefined;
+  source?: Contact["source"] | undefined;
+}): Promise<Contact> {
+  if (BASE) return http<Contact>("/contacts", { method: "POST", body: JSON.stringify(input) });
+  await delay(150);
+  const list = ensureContacts();
+  const email = input.email.trim().toLowerCase();
+  const existing = list.find((c) => c.email.toLowerCase() === email);
+  if (existing) return clone(existing);
+  const contact: Contact = {
+    id: `ct-${Math.random().toString(36).slice(2, 8)}`,
+    name: input.name.trim() || email.split("@")[0]!,
+    email,
+    company: input.company?.trim() || undefined,
+    clientId: input.clientId,
+    role: input.role,
+    source: input.source ?? "manual",
+    createdAtISO: new Date().toISOString(),
+  };
+  list.unshift(contact);
+  persistContacts();
+  return clone(contact);
+}
+
+export async function updateContact(
+  id: string,
+  patch: Partial<Pick<Contact, "name" | "email" | "company" | "clientId" | "role">>,
+): Promise<Contact> {
+  if (BASE)
+    return http<Contact>(`/contacts/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
+  await delay(150);
+  const contact = ensureContacts().find((c) => c.id === id);
+  if (!contact) throw new Error("Contact not found");
+  Object.assign(contact, patch);
+  persistContacts();
+  return clone(contact);
+}
+
+export async function deleteContact(id: string): Promise<void> {
+  if (BASE) {
+    await http<void>(`/contacts/${id}`, { method: "DELETE" });
+    return;
+  }
+  await delay(150);
+  const list = ensureContacts();
+  const i = list.findIndex((c) => c.id === id);
+  if (i >= 0) list.splice(i, 1);
+  persistContacts();
+}
+
+/** Mock: guess a contact record for a loose name/email pair. */
+export async function suggestContactFromEmail(
+  name: string,
+  email: string,
+): Promise<Contact | null> {
+  if (BASE)
+    return http<Contact | null>(
+      `/contacts/suggest?name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}`,
+    );
+  await delay(150);
+  const domain = email.split("@")[1]?.toLowerCase() ?? "";
+  const match = ensureContacts().find((c) => c.email.toLowerCase().endsWith(`@${domain}`));
+  if (!match) return null;
+  return clone({
+    ...match,
+    id: `ct-suggested-${domain}`,
+    name: name || match.name,
+    email,
+    source: "sent",
+  });
+}
+
+/** Meeting attendees / collaborators who aren't in the book yet. */
+export async function suggestedContacts(): Promise<
+  { name: string; clientId?: string | undefined; reason: string }[]
+> {
+  if (BASE) return http("/contacts/suggestions");
+  await delay(150);
+  const known = new Set(ensureContacts().map((c) => c.name.toLowerCase()));
+  const dismissed = new Set(dismissedSuggestions().map((d) => d.toLowerCase()));
+  const out = new Map<string, { name: string; clientId?: string | undefined; reason: string }>();
+  for (const n of notes) {
+    for (const a of n.attendees) {
+      if (a === "Mary Alcott") continue;
+      const key = a.toLowerCase();
+      if (known.has(key) || dismissed.has(key) || out.has(key)) continue;
+      out.set(key, { name: a, clientId: n.clientId, reason: `Met on “${n.title}”` });
+    }
+  }
+  return [...out.values()].slice(0, 6);
+}
