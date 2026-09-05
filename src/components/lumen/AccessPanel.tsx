@@ -28,7 +28,7 @@ export function AccessPanel({ clientId, clientName }: { clientId: string; client
 
   const invite = useMutation({
     mutationFn: () =>
-      inviteCollaborator({ email, name: name || undefined, role, clientIds: [clientId] }),
+      inviteCollaborator({ email, ...(name ? { name } : {}), role, clientIds: [clientId] }),
     onSuccess: async (p) => {
       await refresh();
       setEmail("");
