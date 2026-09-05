@@ -33,41 +33,62 @@ export function ShareRecapDialog({
   onOpenChange: (v: boolean) => void;
 }) {
   const { markShared } = useUi();
-  const attendees = useMemo(
-    () => note.attendees.map((a) => ({ name: a, email: emailFor(a) })),
-    [note.attendees],
+  const contacts = useQuery({ queryKey: ["contacts"], queryFn: () => listContacts() });
+  const suggested = useMemo<Recipient[]>(
+    () =>
+      note.attendees
+        .filter((a) => a !== "Mary Alcott")
+        .map((a) => {
+          const match = (contacts.data ?? []).find(
+            (c) => c.name.toLowerCase() === a.toLowerCase(),
+          );
+          return match
+            ? { name: match.name, email: match.email, known: true }
+            : { name: a, email: emailFor(a), known: false };
+        }),
+    [note.attendees, contacts.data],
   );
-  const [selected, setSelected] = useState<string[]>(() =>
-    attendees.filter((a) => a.name !== "Mary Alcott").map((a) => a.email),
-  );
+  const [recipients, setRecipients] = useState<Recipient[] | null>(null);
+  const value = recipients ?? suggested;
   const [includeTeam, setIncludeTeam] = useState(false);
-  const [manual, setManual] = useState("");
-  const [extra, setExtra] = useState<string[]>([]);
   const [channel, setChannel] = useState<ShareChannel>("email");
   const [sending, setSending] = useState(false);
 
   const recap = useMemo(() => buildRecap(note, clientName), [note, clientName]);
-  const recipients = [...selected, ...extra];
-  const canSend = channel !== "email" || recipients.length > 0 || includeTeam;
+  const canSend = channel !== "email" || value.length > 0 || includeTeam;
 
-  function toggle(email: string) {
-    setSelected((s) => (s.includes(email) ? s.filter((e) => e !== email) : [...s, email]));
-  }
-
-  function addManual() {
-    const v = manual.trim();
-    if (!isEmail(v)) {
-      toast.error("That doesn't look like an email address");
-      return;
+  function offerToSave(list: Recipient[]) {
+    for (const r of list.filter((x) => !x.known)) {
+      toast(`Add ${r.name} to contacts?`, {
+        action: {
+          label: "Add",
+          onClick: () => {
+            void createContact({
+              name: r.name,
+              email: r.email,
+              clientId: note.clientId,
+              role: "client",
+              source: "sent",
+            }).then(() => {
+              void qc.invalidateQueries({ queryKey: ["contacts"] });
+              toast.success(`${r.name} saved to contacts`);
+            });
+          },
+        },
+        cancel: { label: "Not now", onClick: () => undefined },
+      });
     }
-    setExtra((e) => [...new Set([...e, v])]);
-    setManual("");
   }
 
   async function submit() {
     setSending(true);
     try {
-      const result = await shareRecap(note.id, { recipients, includeTeam, channel });
+      const result = await shareRecap(note.id, {
+        recipients: value.map((r) => r.email),
+        includeTeam,
+        channel,
+      });
+
       markShared(note.id, new Date().toISOString());
       if (result.channel === "email")
         toast.success(`Recap sent to ${(result.sentTo ?? []).join(", ")}`);
