@@ -1022,6 +1022,9 @@ export async function suggestClientForIdea(
   return null;
 }
 
+import { seedCollaborators, seedShareLinks } from "./access-mock";
+import type { Collaborator, CollaboratorRole, ShareLink, ShareTarget } from "./types";
+
 /* ------------------------------ Sharing & access ----------------------------- */
 
 const COLLAB_KEY = "lumen.collaborators.v1";
