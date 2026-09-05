@@ -843,8 +843,15 @@ export async function createIdea(
 ): Promise<Idea> {
   if (BASE) return http<Idea>("/ideas", { method: "POST", body: JSON.stringify(input) });
   await delay(320);
+  const { createClient: newClient, ...rest } = input;
+  let clientId = rest.clientId;
+  if (newClient?.name.trim()) {
+    const created = await createClient(newClient);
+    clientId = created.id;
+  }
   const idea: Idea = {
-    ...input,
+    ...rest,
+    clientId,
     id: `i-${Date.now().toString(36)}`,
     createdAtISO: input.createdAtISO ?? new Date().toISOString(),
   };

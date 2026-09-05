@@ -5,6 +5,7 @@ export interface Client {
   name: string;
   tagColor: TagColor;
   meetingsThisMonth?: number | undefined;
+  note?: string | undefined;
   lastMeetingAt?: string | undefined;
 }
 
@@ -203,6 +204,7 @@ export interface Idea {
   durationSeconds?: number | undefined;
   createdAtISO: string;
   convertedToNoteId?: string | undefined;
+  suggestionDismissed?: boolean | undefined;
 }
 
 export interface BrandDNA {
