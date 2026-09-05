@@ -24,9 +24,8 @@ export const Route = createFileRoute("/notes/")({
       },
     ],
   }),
-  validateSearch: (search: Record<string, unknown>) => ({
-    client: typeof search["client"] === "string" ? (search["client"] as string) : undefined,
-  }),
+  validateSearch: (search: Record<string, unknown>): { client?: string } =>
+    typeof search["client"] === "string" ? { client: search["client"] } : {},
   component: NotesPage,
 });
 
