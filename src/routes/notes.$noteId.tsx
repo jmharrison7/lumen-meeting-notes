@@ -176,6 +176,8 @@ function NoteDetail() {
         </div>
       </header>
 
+      <MentionBanner noteId={n.id} />
+
       <Section title="Summary">
         <p
           contentEditable={editing}

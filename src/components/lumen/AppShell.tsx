@@ -2,6 +2,7 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import {
+  Bell,
   CalendarDays,
   CheckSquare,
   Circle,
@@ -34,6 +35,7 @@ const nav = [
   { to: "/actions", label: "Action Items", icon: CheckSquare, exact: false },
   { to: "/clients", label: "Clients", icon: Users, exact: false },
   { to: "/templates", label: "Templates", icon: LayoutTemplate, exact: false },
+  { to: "/alerts", label: "Alerts", icon: Bell, exact: false },
   { to: "/search", label: "Search", icon: Search, exact: false },
 ] as const;
 
