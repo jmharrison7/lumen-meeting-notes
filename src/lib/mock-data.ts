@@ -120,6 +120,7 @@ function makeNote(
     openQuestions,
     tags,
     transcript: transcript ?? transcriptFor(title, attendees),
+    audio: { durationSeconds: durationMinutes * 60 },
     reviewed,
     actionItems: items.map((it, i) =>
       ai(id, clientId, title, i + 1, it[0], it[1], it[2], it[3], it[4] ?? false, i % 3 === 0),
@@ -468,5 +469,17 @@ export function clientsWithStats(): Client[] {
       meetingsThisMonth: cn.filter((n) => Date.now() - new Date(n.date).getTime() < 30 * DAY).length,
       lastMeetingAt: last,
     };
+  });
+}
+
+// The packaging review is the demo note with a full, timestamped transcript, so a
+// few of its decisions, questions and actions point back into the recording.
+const packaging = notes.find((n) => n.id === "n-1");
+if (packaging) {
+  packaging.decisionTimes = [571, 571, undefined, 682];
+  packaging.questionTimes = [330, 665];
+  const at: Record<number, number> = { 0: 665, 2: 330, 3: 665 };
+  packaging.actionItems.forEach((item, i) => {
+    if (at[i] !== undefined) item.atSeconds = at[i];
   });
 }
