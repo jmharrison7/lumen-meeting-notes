@@ -177,16 +177,17 @@ function Card({
   return (
     <div
       className={cn(
-        "flex items-start gap-3 rounded-xl border border-hairline bg-card px-4 py-3.5 transition-all duration-200",
+        "flex items-start gap-3 rounded-xl border border-hairline bg-card px-4 py-3.5 transition-all duration-200 hover:border-border hover:shadow-soft",
         item.done && "opacity-55",
+        overdue && !item.done && "border-destructive/25 bg-destructive/[0.035]",
       )}
     >
       <input
         type="checkbox"
         checked={item.done}
         onChange={onToggle}
-        aria-label={item.text}
-        className="mt-0.5 size-4 accent-[oklch(0.53_0.145_42)]"
+        aria-label={`Mark "${item.text}" ${item.done ? "not done" : "done"}`}
+        className="mt-0.5 size-4 accent-[oklch(0.53_0.145_42)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
       />
       <div className="min-w-0 flex-1">
         <p className={cn("text-sm leading-snug", item.done && "line-through")}>{item.text}</p>
@@ -194,15 +195,11 @@ function Card({
           <PriorityDot priority={item.priority} />
           <span>{item.owner}</span>
           {clientName && color ? <ClientChip name={clientName} color={color} /> : null}
-          {item.dueDate ? (
-            <span className={cn(overdue && !item.done && "font-medium text-ember")}>
-              {formatDate(item.dueDate)}
-            </span>
-          ) : null}
+          <DueBadge iso={item.dueDate} done={item.done} />
           <Link
             to="/notes/$noteId"
             params={{ noteId: item.noteId }}
-            className="truncate hover:text-ember"
+            className="truncate rounded hover:text-ember focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           >
             {item.noteTitle}
           </Link>
