@@ -20,6 +20,7 @@ export interface ActionItem {
   dueDate?: string | undefined;
   priority: Priority;
   done: boolean;
+  atSeconds?: number | undefined;
   syncedToTeamwork?: boolean | undefined;
 }
 
@@ -40,6 +41,21 @@ export interface Note {
   transcript: string;
   reviewed: boolean;
   actionItems: ActionItem[];
+  audio?: NoteAudio | undefined;
+  /** Optional per-index playback offsets, aligned with `decisions` / `openQuestions`. */
+  decisionTimes?: (number | undefined)[] | undefined;
+  questionTimes?: (number | undefined)[] | undefined;
+}
+
+export interface NoteAudio {
+  durationSeconds: number;
+  url?: string | undefined;
+}
+
+export interface TranscriptLine {
+  atSeconds: number;
+  speaker: string;
+  text: string;
 }
 
 export interface CalendarEvent {
@@ -144,4 +160,33 @@ export interface MentionHit {
   snippet: string;
   atSeconds?: number | undefined;
   topic?: string | undefined;
+}
+
+export interface AskSource {
+  kind: "note" | "file" | "transcript";
+  label: string;
+  snippet: string;
+  link: string;
+}
+
+export interface AskReply {
+  answer: string;
+  sources: AskSource[];
+}
+
+export interface AskMessage {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  sources?: AskSource[] | undefined;
+  attachment?: string | undefined;
+}
+
+export type ShareChannel = "email" | "link" | "text";
+
+export interface ShareResult {
+  channel: ShareChannel;
+  sentTo?: string[] | undefined;
+  link?: string | undefined;
+  text?: string | undefined;
 }

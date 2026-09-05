@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   Check,
@@ -9,6 +9,8 @@ import {
   Download,
   FileDown,
   Mail,
+  MessageCircleQuestion,
+  Send,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -29,11 +31,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  clock,
   download,
+  formatDate,
   formatDuration,
   formatTime,
   fullDate,
   noteToMarkdown,
+  parseTranscriptLines,
   relativeDate,
 } from "@/lib/format";
 import { useUi } from "@/lib/ui-store";
@@ -41,6 +46,9 @@ import { cn } from "@/lib/utils";
 import type { ActionItem } from "@/lib/types";
 import { FollowUpDialog } from "@/components/lumen/FollowUpDialog";
 import { MentionBanner } from "@/components/lumen/Mentions";
+import { PlaybackBar, TimeChip } from "@/components/lumen/PlaybackBar";
+import { ShareRecapDialog } from "@/components/lumen/ShareRecapDialog";
+import { AskPanel } from "@/components/lumen/AskPanel";
 
 export const Route = createFileRoute("/notes/$noteId")({
   head: () => ({
@@ -65,11 +73,32 @@ function NoteDetail() {
   const { noteId } = Route.useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { applyItem, patchItem, reviewed, setReviewed, hideNotes } = useUi();
+  const { applyItem, patchItem, reviewed, setReviewed, hideNotes, shared } = useUi();
   const [showTranscript, setShowTranscript] = useState(false);
   const [editing, setEditing] = useState(false);
   const [mdOpen, setMdOpen] = useState(false);
   const [followUpOpen, setFollowUpOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [askOpen, setAskOpen] = useState(false);
+  const [playback, setPlayback] = useState<{ at: number; from?: string | undefined } | null>(null);
+  const [highlighted, setHighlighted] = useState<string | null>(null);
+  const lineRefs = useRef<Record<string, HTMLElement | null>>({});
+
+  const play = useCallback((at: number, from?: string) => {
+    setPlayback({ at, ...(from ? { from } : {}) });
+  }, []);
+
+  useEffect(() => {
+    const onPlay = () => setPlayback({ at: 0 });
+    window.addEventListener("lumen:play-audio", onPlay);
+    return () => window.removeEventListener("lumen:play-audio", onPlay);
+  }, []);
+
+  useEffect(() => {
+    if (!highlighted) return;
+    const t = setTimeout(() => setHighlighted(null), 2000);
+    return () => clearTimeout(t);
+  }, [highlighted]);
 
   const note = useQuery({ queryKey: ["note", noteId], queryFn: () => getNote(noteId) });
   const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
@@ -126,6 +155,7 @@ function NoteDetail() {
   }
 
   const md = noteToMarkdown(n, client?.name ?? "Client");
+  const lines = parseTranscriptLines(n.transcript);
 
   return (
     <article className="animate-[rise_200ms_ease-out] space-y-10 pb-16 md:pb-0">
@@ -149,6 +179,14 @@ function NoteDetail() {
           <span className="inline-flex items-center gap-1 rounded-md bg-ember-soft px-2 py-0.5 font-medium text-ember">
             AI transcribed
           </span>
+          {shared[n.id] ? (
+            <span
+              title={fullDate(shared[n.id] as string)}
+              className="inline-flex items-center gap-1 rounded-md border border-hairline px-2 py-0.5"
+            >
+              Shared · {formatDate(shared[n.id] as string)}
+            </span>
+          ) : null}
         </div>
         <p className="text-xs text-muted-foreground">{n.attendees.join(" · ")}</p>
 
@@ -164,6 +202,12 @@ function NoteDetail() {
           </Action>
           <Action onClick={() => setFollowUpOpen(true)}>
             <Mail className="size-3.5" /> Draft follow-up
+          </Action>
+          <Action onClick={() => setShareOpen(true)}>
+            <Send className="size-3.5" /> Share recap
+          </Action>
+          <Action onClick={() => setAskOpen(true)}>
+            <MessageCircleQuestion className="size-3.5" /> Ask about this meeting
           </Action>
           <Action onClick={() => download(`${n.id}.md`, md)}>
             <FileDown className="size-3.5" /> Export
@@ -194,14 +238,28 @@ function NoteDetail() {
 
       <Section title="Decisions">
         <ul className="space-y-2">
-          {n.decisions.map((d) => (
-            <li key={d} className="flex gap-2.5 text-[15px] leading-relaxed">
-              <span className="mt-2 size-1.5 shrink-0 rounded-full bg-ember" />
-              <span contentEditable={editing} suppressContentEditableWarning className="outline-none">
-                {d}
-              </span>
-            </li>
-          ))}
+          {n.decisions.map((d, i) => {
+            const at = n.decisionTimes?.[i];
+            const key = `decision-${i}`;
+            return (
+              <li
+                key={d}
+                ref={(el) => {
+                  lineRefs.current[key] = el;
+                }}
+                className={cn(
+                  "flex gap-2.5 rounded-md text-[15px] leading-relaxed transition-colors",
+                  highlighted === key && "bg-ember-soft/70 px-2 py-1",
+                )}
+              >
+                <span className="mt-2 size-1.5 shrink-0 rounded-full bg-ember" />
+                <span contentEditable={editing} suppressContentEditableWarning className="outline-none">
+                  {d}
+                </span>
+                {at !== undefined ? <TimeChip seconds={at} onPlay={(s) => play(s, key)} className="mt-0.5" /> : null}
+              </li>
+            );
+          })}
         </ul>
       </Section>
 
@@ -227,6 +285,9 @@ function NoteDetail() {
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                   <PriorityDot priority={a.priority} />
                   <DueBadge iso={a.dueDate} done={a.done} />
+                  {a.atSeconds !== undefined ? (
+                    <TimeChip seconds={a.atSeconds} onPlay={(s) => play(s)} />
+                  ) : null}
                   <input
                     value={a.owner}
                     aria-label={`Owner for "${a.text}"`}
@@ -267,12 +328,26 @@ function NoteDetail() {
       {n.openQuestions.length ? (
         <Section title="Open questions">
           <ul className="space-y-2">
-            {n.openQuestions.map((q) => (
-              <li key={q} className="flex gap-2.5 text-[15px] leading-relaxed text-foreground/90">
-                <span className="text-ember">?</span>
-                {q}
-              </li>
-            ))}
+            {n.openQuestions.map((q, i) => {
+              const at = n.questionTimes?.[i];
+              const key = `question-${i}`;
+              return (
+                <li
+                  key={q}
+                  ref={(el) => {
+                    lineRefs.current[key] = el;
+                  }}
+                  className={cn(
+                    "flex gap-2.5 rounded-md text-[15px] leading-relaxed text-foreground/90 transition-colors",
+                    highlighted === key && "bg-ember-soft/70 px-2 py-1",
+                  )}
+                >
+                  <span className="text-ember">?</span>
+                  <span className="flex-1">{q}</span>
+                  {at !== undefined ? <TimeChip seconds={at} onPlay={(s) => play(s, key)} /> : null}
+                </li>
+              );
+            })}
           </ul>
         </Section>
       ) : null}
@@ -296,13 +371,58 @@ function NoteDetail() {
           </button>
         </div>
         {showTranscript ? (
-          <pre className="animate-[fade-in_180ms_ease-out] whitespace-pre-wrap rounded-xl border border-hairline bg-surface p-5 text-[13px] leading-relaxed text-muted-foreground">
-            {n.transcript}
-          </pre>
+          <div className="animate-[fade-in_180ms_ease-out] space-y-2.5 rounded-xl border border-hairline bg-surface p-5 text-[13px] leading-relaxed text-muted-foreground">
+            {lines.length ? (
+              lines.map((l, i) => (
+                <p key={`${l.atSeconds}-${i}`} className="flex gap-2">
+                  <button
+                    onClick={() => play(l.atSeconds)}
+                    aria-label={`Play from ${clock(l.atSeconds)}`}
+                    className="shrink-0 tabular-nums text-muted-foreground/70 hover:text-ember"
+                  >
+                    {clock(l.atSeconds)}
+                  </button>
+                  <span>
+                    <span className="font-medium text-foreground/80">{l.speaker}:</span> {l.text}
+                  </span>
+                </p>
+              ))
+            ) : (
+              <pre className="whitespace-pre-wrap">{n.transcript}</pre>
+            )}
+          </div>
         ) : null}
       </section>
 
       <FollowUpDialog note={n} open={followUpOpen} onOpenChange={setFollowUpOpen} />
+      <ShareRecapDialog
+        note={n}
+        clientName={client?.name ?? "Client"}
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+      />
+      <AskPanel
+        scope={{ noteId: n.id, label: `This meeting: ${n.title}` }}
+        open={askOpen}
+        onOpenChange={setAskOpen}
+      />
+      {playback ? (
+        <PlaybackBar
+          label={`Meeting audio — ${client?.name ?? "Client"}, ${formatDate(n.date)}`}
+          startAt={playback.at}
+          durationSeconds={n.audio?.durationSeconds ?? n.durationMinutes * 60}
+          onClose={() => setPlayback(null)}
+          onBackToNote={
+            playback.from
+              ? () => {
+                  const el = lineRefs.current[playback.from as string];
+                  el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  setHighlighted(playback.from as string);
+                }
+              : undefined
+          }
+        />
+      ) : null}
 
       <Dialog open={mdOpen} onOpenChange={setMdOpen}>
         <DialogContent className="max-w-2xl">
@@ -351,6 +471,13 @@ function NoteDetail() {
           )}
         >
           <Check className="size-4" />
+        </button>
+        <button
+          onClick={() => setShareOpen(true)}
+          aria-label="Share recap"
+          className="grid size-11 place-items-center rounded-lg border border-border"
+        >
+          <Send className="size-4" />
         </button>
         <button
           onClick={() => download(`${n.id}.md`, md)}

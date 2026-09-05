@@ -208,6 +208,16 @@ export function AppShell({ children }: { children: ReactNode }) {
                 Open live note — {live.title}
               </CommandItem>
             ) : null}
+            {pathname.startsWith("/notes/") ? (
+              <CommandItem
+                onSelect={() => {
+                  setPaletteOpen(false);
+                  window.dispatchEvent(new CustomEvent("lumen:play-audio"));
+                }}
+              >
+                Play meeting audio
+              </CommandItem>
+            ) : null}
             <CommandItem
               onSelect={() => {
                 toggleTheme();

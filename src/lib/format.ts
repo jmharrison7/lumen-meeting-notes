@@ -1,4 +1,4 @@
-import type { Note, TagColor } from "./types";
+import type { Note, TagColor, TranscriptLine } from "./types";
 
 export function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -121,4 +121,26 @@ export function download(filename: string, text: string) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/** mm:ss for playback chips and the player clock. */
+export function clock(seconds: number) {
+  const s = Math.max(0, Math.round(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/** Parses "Speaker (mm:ss): text" transcript lines into timestamped rows. */
+export function parseTranscriptLines(transcript: string): TranscriptLine[] {
+  return transcript
+    .split(/\n+/)
+    .map((raw) => {
+      const m = /^(.+?)\s*\((\d{1,2}):(\d{2})\):\s*(.*)$/.exec(raw.trim());
+      if (!m) return null;
+      return {
+        speaker: m[1] as string,
+        atSeconds: Number(m[2]) * 60 + Number(m[3]),
+        text: m[4] as string,
+      };
+    })
+    .filter((l): l is TranscriptLine => l !== null);
 }
