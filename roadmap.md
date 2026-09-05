@@ -10,4 +10,5 @@
 - Share recap — neutral recap modal with recipients, email/link/text channels and a persistent Shared chip.
 
 - Ideas capture (voice, upload, typed) with filters, detail view and Today strip.
+- Client-scoped Ideas tab, suggested-client routing on confirm, and inline new-client creation from capture.
 - Per-client Brand DNA hub (voice, always/never, tone, Drive references).

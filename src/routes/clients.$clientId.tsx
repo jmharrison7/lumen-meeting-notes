@@ -2,13 +2,15 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { ArrowLeft, Sparkles } from "lucide-react";
-import { listClients, listNotes } from "@/lib/api";
+import { listClients, listIdeas, listNotes } from "@/lib/api";
 import { EmptyState, ErrorState, ListSkeleton } from "@/components/lumen/primitives";
 import { NoteRow } from "@/components/lumen/NoteRow";
 import { FilesPanel } from "@/components/lumen/FilesPanel";
 import { TemplatesPanel } from "@/components/lumen/TemplatesPanel";
 import { AskPanel } from "@/components/lumen/AskPanel";
 import { BrandDnaPanel } from "@/components/lumen/BrandDnaPanel";
+import { QuickCapture } from "@/components/lumen/QuickCapture";
+import { IdeasGrid } from "@/components/lumen/IdeasGrid";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/clients/$clientId")({
@@ -29,7 +31,7 @@ export const Route = createFileRoute("/clients/$clientId")({
   component: ClientDetail,
 });
 
-const tabs = ["Notes", "Files", "Brand DNA", "Templates", "Ask"] as const;
+const tabs = ["Notes", "Ideas", "Files", "Brand DNA", "Templates", "Ask"] as const;
 
 function ClientDetail() {
   const { clientId } = Route.useParams();
@@ -37,8 +39,10 @@ function ClientDetail() {
   const [askOpen, setAskOpen] = useState(false);
   const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
   const notes = useQuery({ queryKey: ["notes"], queryFn: listNotes });
+  const ideas = useQuery({ queryKey: ["ideas"], queryFn: listIdeas });
 
   const client = (clients.data ?? []).find((c) => c.id === clientId);
+  const clientIdeas = (ideas.data ?? []).filter((i) => i.clientId === clientId);
   const clientNotes = (notes.data ?? [])
     .filter((n) => n.clientId === clientId)
     .sort((a, b) => b.date.localeCompare(a.date));
@@ -107,6 +111,22 @@ function ClientDetail() {
             ))}
           </div>
         )
+      ) : tab === "Ideas" ? (
+        <div className="space-y-5">
+          <QuickCapture defaultClientId={clientId} />
+          {ideas.isError ? (
+            <ErrorState onRetry={() => void ideas.refetch()} />
+          ) : ideas.isLoading ? (
+            <ListSkeleton rows={2} />
+          ) : clientIdeas.length === 0 ? (
+            <EmptyState
+              title="No ideas for this client yet"
+              body="Record, upload or type a thought above and it lands here."
+            />
+          ) : (
+            <IdeasGrid ideas={clientIdeas} clients={clients.data ?? []} showClient={false} />
+          )}
+        </div>
       ) : tab === "Files" ? (
         <FilesPanel clientId={clientId} />
       ) : tab === "Brand DNA" ? (

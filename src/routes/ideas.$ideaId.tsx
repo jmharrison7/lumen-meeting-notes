@@ -6,6 +6,9 @@ import { toast } from "sonner";
 import { deleteIdea, getIdea, listClients, updateIdea } from "@/lib/api";
 import { clock, fullDate, relativeDate } from "@/lib/format";
 import { ErrorState, ListSkeleton } from "@/components/lumen/primitives";
+import { IdeaSuggestion } from "@/components/lumen/IdeaSuggestion";
+import { ClientSelect } from "@/components/lumen/ClientSelect";
+import { createClient } from "@/lib/api";
 
 export const Route = createFileRoute("/ideas/$ideaId")({
   head: () => ({
@@ -30,6 +33,7 @@ function IdeaDetail() {
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [clientId, setClientId] = useState("");
+  const [newClient, setNewClient] = useState<{ name: string; note?: string } | undefined>(undefined);
 
   useEffect(() => {
     if (idea.data) {
@@ -98,6 +102,8 @@ function IdeaDetail() {
         </button>
       </div>
 
+      <IdeaSuggestion idea={i} />
+
       <article className="rounded-xl border border-hairline bg-card p-5 text-[15px] leading-relaxed">
         {i.transcript}
       </article>
@@ -135,22 +141,33 @@ function IdeaDetail() {
             aria-label="Add a tag"
             className="min-h-[38px] w-32 rounded-lg border border-hairline bg-surface px-2.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ember/40"
           />
-          <select
-            value={clientId}
-            onChange={(e) => {
-              setClientId(e.target.value);
-              void persist({ clientId: e.target.value || undefined });
-            }}
-            aria-label="Assign to a client"
-            className="ml-auto min-h-[38px] rounded-lg border border-hairline bg-surface px-2.5 text-xs"
-          >
-            <option value="">Personal / General</option>
-            {(clients.data ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <ClientSelect
+              value={clientId}
+              newClient={newClient}
+              onChange={async (choice) => {
+                setNewClient(choice.newClient);
+                if (choice.newClient) return;
+                setClientId(choice.clientId ?? "");
+                await persist({ clientId: choice.clientId });
+              }}
+            />
+            {newClient?.name.trim() ? (
+              <button
+                onClick={async () => {
+                  const created = await createClient(newClient);
+                  setNewClient(undefined);
+                  setClientId(created.id);
+                  await persist({ clientId: created.id });
+                  await qc.invalidateQueries({ queryKey: ["clients"] });
+                  toast.success(`${created.name} added — idea filed there.`);
+                }}
+                className="min-h-[38px] rounded-lg border border-hairline bg-surface px-2.5 text-xs transition-colors hover:border-ember/40 hover:text-ember"
+              >
+                Create &amp; attach
+              </button>
+            ) : null}
+          </div>
         </div>
       </section>
     </div>

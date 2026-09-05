@@ -1,5 +1,5 @@
 import { actionItems, calendar, clientsWithStats, notes } from "./mock-data";
-import type { ActionItem, CalendarEvent, Client, Note } from "./types";
+import type { ActionItem, CalendarEvent, Client, Note, TagColor } from "./types";
 
 /**
  * Thin client layer. When VITE_API_URL is set, every function talks HTTP.
@@ -38,8 +38,9 @@ export async function getNote(id: string): Promise<Note | null> {
 export async function listClients(): Promise<Client[]> {
   if (BASE) return http<Client[]>("/clients");
   await delay(240);
-  return clone(clientsWithStats());
+  return clone([...clientsWithStats(), ...ensureCustomClients()]);
 }
+
 
 export async function listActionItems(): Promise<ActionItem[]> {
   if (BASE) return http<ActionItem[]>("/action-items");
@@ -835,12 +836,22 @@ export async function getIdea(id: string): Promise<Idea | null> {
 }
 
 export async function createIdea(
-  input: Omit<Idea, "id" | "createdAtISO"> & { createdAtISO?: string },
+  input: Omit<Idea, "id" | "createdAtISO"> & {
+    createdAtISO?: string;
+    createClient?: { name: string; note?: string };
+  },
 ): Promise<Idea> {
   if (BASE) return http<Idea>("/ideas", { method: "POST", body: JSON.stringify(input) });
   await delay(320);
+  const { createClient: newClient, ...rest } = input;
+  let clientId = rest.clientId;
+  if (newClient?.name.trim()) {
+    const created = await createClient(newClient);
+    clientId = created.id;
+  }
   const idea: Idea = {
-    ...input,
+    ...rest,
+    clientId,
     id: `i-${Date.now().toString(36)}`,
     createdAtISO: input.createdAtISO ?? new Date().toISOString(),
   };
@@ -915,4 +926,98 @@ export async function saveBrandDNA(clientId: string, dna: BrandDNA): Promise<Bra
   ensureDna()[clientId] = next;
   persistDna();
   return clone(next);
+}
+
+/* --------------------- Client creation & idea routing -------------------- */
+
+const CUSTOM_CLIENTS_KEY = "lumen.clients.v1";
+const palette: TagColor[] = ["ember", "forest", "plum", "ocean", "sand", "slate"];
+
+let customClients: Client[] | null = null;
+
+function ensureCustomClients(): Client[] {
+  if (customClients) return customClients;
+  customClients = [];
+  if (typeof window !== "undefined") {
+    try {
+      const raw = window.localStorage.getItem(CUSTOM_CLIENTS_KEY);
+      if (raw) customClients = JSON.parse(raw) as Client[];
+    } catch {
+      /* ignore malformed storage */
+    }
+  }
+  return customClients;
+}
+
+function persistCustomClients() {
+  if (typeof window === "undefined" || !customClients) return;
+  window.localStorage.setItem(CUSTOM_CLIENTS_KEY, JSON.stringify(customClients));
+}
+
+export async function createClient(input: { name: string; note?: string }): Promise<Client> {
+  if (BASE) return http<Client>("/clients", { method: "POST", body: JSON.stringify(input) });
+  await delay(280);
+  const list = ensureCustomClients();
+  const slug = input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "client";
+  const client: Client = {
+    id: `c-${slug}-${Math.random().toString(36).slice(2, 6)}`,
+    name: input.name.trim(),
+    tagColor: palette[(clientsWithStats().length + list.length) % palette.length] as TagColor,
+    meetingsThisMonth: 0,
+    ...(input.note?.trim() ? { note: input.note.trim() } : {}),
+  };
+  list.push(client);
+  persistCustomClients();
+  return clone(client);
+}
+
+const projectWords = ["launch", "brand", "pitch", "site for", "campaign", "rebrand", "identity"];
+
+function tokens(text: string) {
+  return new Set(
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 3),
+  );
+}
+
+export async function suggestClientForIdea(
+  ideaId: string,
+): Promise<{ clientId?: string; reason: string } | null> {
+  if (BASE) return http<{ clientId?: string; reason: string } | null>(`/ideas/${ideaId}/suggest-client`);
+  await delay(420);
+  const idea = ensureIdeas().find((i) => i.id === ideaId);
+  if (!idea || idea.clientId) return null;
+
+  const haystack = tokens(`${idea.title} ${idea.transcript} ${idea.tags.join(" ")}`);
+  const dna = ensureDna();
+  let best: { clientId: string; score: number; hit: string; name: string } | null = null;
+
+  for (const c of [...clientsWithStats(), ...ensureCustomClients()]) {
+    const candidate = [...tokens(c.name), ...(dna[c.id]?.voice ?? []).flatMap((v) => [...tokens(v)])];
+    let score = 0;
+    let hit = "";
+    for (const word of candidate) {
+      if (haystack.has(word)) {
+        score += 1;
+        if (!hit) hit = word;
+      }
+    }
+    if (score > 0 && (!best || score > best.score)) {
+      best = { clientId: c.id, score, hit, name: c.name };
+    }
+  }
+
+  if (best && best.score >= 1) {
+    return { clientId: best.clientId, reason: `mentions “${best.hit}”` };
+  }
+
+  const lower = `${idea.title} ${idea.transcript}`.toLowerCase();
+  const projectWord = projectWords.find((w) => lower.includes(w));
+  if (projectWord) {
+    return { reason: `it mentions “${projectWord}”` };
+  }
+  return null;
 }

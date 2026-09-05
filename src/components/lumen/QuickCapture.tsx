@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Mic, Square, Upload, X } from "lucide-react";
 import { toast } from "sonner";
-import { createIdea, listClients, titleFromTranscript, transcribeAudio } from "@/lib/api";
+import { createIdea, titleFromTranscript, transcribeAudio } from "@/lib/api";
 import { clock } from "@/lib/format";
 import type { IdeaSource } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { ClientSelect } from "@/components/lumen/ClientSelect";
 
 type Draft = {
   transcript: string;
@@ -14,9 +15,8 @@ type Draft = {
   fileLabel?: string | undefined;
 };
 
-export function QuickCapture({ defaultClientId }: { defaultClientId?: string }) {
+export function QuickCapture({ defaultClientId }: { defaultClientId?: string | undefined }) {
   const qc = useQueryClient();
-  const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [transcribing, setTranscribing] = useState(false);
@@ -26,6 +26,7 @@ export function QuickCapture({ defaultClientId }: { defaultClientId?: string }) 
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [clientId, setClientId] = useState(defaultClientId ?? "");
+  const [newClient, setNewClient] = useState<{ name: string; note?: string } | undefined>(undefined);
   const [saving, setSaving] = useState(false);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -116,6 +117,7 @@ export function QuickCapture({ defaultClientId }: { defaultClientId?: string }) 
     setTags([]);
     setTagInput("");
     setClientId(defaultClientId ?? "");
+    setNewClient(undefined);
   }
 
   async function save() {
@@ -129,8 +131,10 @@ export function QuickCapture({ defaultClientId }: { defaultClientId?: string }) 
         tags,
         source: draft.source,
         durationSeconds: draft.durationSeconds,
+        ...(newClient?.name.trim() ? { createClient: { name: newClient.name } } : {}),
       });
       await qc.invalidateQueries({ queryKey: ["ideas"] });
+      await qc.invalidateQueries({ queryKey: ["clients"] });
       toast.success("Caught it.");
       reset();
     } catch {
@@ -278,19 +282,16 @@ export function QuickCapture({ defaultClientId }: { defaultClientId?: string }) 
               aria-label="Add a tag"
               className="min-h-[38px] w-32 rounded-lg border border-hairline bg-surface px-2.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ember/40"
             />
-            <select
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-              aria-label="Assign to a client"
-              className="ml-auto min-h-[38px] rounded-lg border border-hairline bg-surface px-2.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ember/40"
-            >
-              <option value="">Personal / General</option>
-              {(clients.data ?? []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <div className="ml-auto w-full sm:w-auto">
+              <ClientSelect
+                value={clientId}
+                newClient={newClient}
+                onChange={(choice) => {
+                  setClientId(choice.clientId ?? "");
+                  setNewClient(choice.newClient);
+                }}
+              />
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
