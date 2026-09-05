@@ -14,12 +14,27 @@ import { toast } from "sonner";
 import { deleteNotes, getNote, listClients, updateActionItem } from "@/lib/api";
 import {
   ClientChip,
+  DueBadge,
   ErrorState,
   PlatformBadge,
   PriorityDot,
   SectionTitle,
 } from "@/components/lumen/primitives";
-import { download, formatDate, formatDuration, formatTime, noteToMarkdown } from "@/lib/format";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  download,
+  formatDuration,
+  formatTime,
+  fullDate,
+  noteToMarkdown,
+  relativeDate,
+} from "@/lib/format";
 import { useUi } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import type { ActionItem } from "@/lib/types";
@@ -50,6 +65,7 @@ function NoteDetail() {
   const { applyItem, patchItem, reviewed, setReviewed, hideNotes } = useUi();
   const [showTranscript, setShowTranscript] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [mdOpen, setMdOpen] = useState(false);
 
   const note = useQuery({ queryKey: ["note", noteId], queryFn: () => getNote(noteId) });
   const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
@@ -122,8 +138,8 @@ function NoteDetail() {
         </h1>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           {client ? <ClientChip name={client.name} color={client.tagColor} /> : null}
-          <span>
-            {formatDate(n.date)} · {formatTime(n.date)} · {formatDuration(n.durationMinutes)}
+          <span title={fullDate(n.date)}>
+            {relativeDate(n.date)} · {formatTime(n.date)} · {formatDuration(n.durationMinutes)}
           </span>
           <PlatformBadge platform={n.platform} />
           <span className="inline-flex items-center gap-1 rounded-md bg-ember-soft px-2 py-0.5 font-medium text-ember">
@@ -139,7 +155,7 @@ function NoteDetail() {
           <Action onClick={() => setEditing((v) => !v)} active={editing}>
             {editing ? "Done editing" : "Edit inline"}
           </Action>
-          <Action onClick={() => void copy(md, "Markdown")}>
+          <Action onClick={() => setMdOpen(true)}>
             <Copy className="size-3.5" /> Copy markdown
           </Action>
           <Action onClick={() => download(`${n.id}.md`, md)}>
@@ -194,20 +210,23 @@ function NoteDetail() {
                 type="checkbox"
                 checked={a.done}
                 onChange={() => void toggleItem(a)}
-                aria-label={a.text}
-                className="mt-0.5 size-4 accent-[oklch(0.53_0.145_42)]"
+                aria-label={`Mark "${a.text}" ${a.done ? "not done" : "done"}`}
+                className="mt-0.5 size-4 accent-[oklch(0.53_0.145_42)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
               />
               <div className="min-w-0 flex-1">
                 <p className={cn("text-sm leading-snug", a.done && "line-through")}>{a.text}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                   <PriorityDot priority={a.priority} />
+                  <DueBadge iso={a.dueDate} done={a.done} />
                   <input
                     value={a.owner}
+                    aria-label={`Owner for "${a.text}"`}
                     onChange={(e) => patchItem(a.id, { owner: e.target.value })}
                     className="w-24 rounded border border-transparent bg-transparent px-1 py-0.5 outline-none hover:border-hairline focus:border-hairline"
                   />
                   <input
                     type="date"
+                    aria-label={`Due date for "${a.text}"`}
                     value={a.dueDate ? a.dueDate.slice(0, 10) : ""}
                     onChange={(e) =>
                       patchItem(a.id, {
@@ -217,6 +236,8 @@ function NoteDetail() {
                     className="rounded border border-transparent bg-transparent px-1 py-0.5 outline-none hover:border-hairline focus:border-hairline"
                   />
                   <button
+                    aria-pressed={!!a.syncedToTeamwork}
+                    aria-label={`Toggle Teamwork sync for "${a.text}"`}
                     onClick={() => patchItem(a.id, { syncedToTeamwork: !a.syncedToTeamwork })}
                     className={cn(
                       "ml-auto rounded-md border px-1.5 py-0.5 transition-colors",
@@ -271,6 +292,37 @@ function NoteDetail() {
           </pre>
         ) : null}
       </section>
+
+      <Dialog open={mdOpen} onOpenChange={setMdOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-title text-xl">Markdown preview</DialogTitle>
+            <DialogDescription>
+              Exactly what lands on your clipboard — paste it anywhere that speaks markdown.
+            </DialogDescription>
+          </DialogHeader>
+          <pre className="max-h-[50vh] overflow-auto whitespace-pre-wrap rounded-lg border border-hairline bg-surface p-4 text-[13px] leading-relaxed text-muted-foreground">
+            {md}
+          </pre>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setMdOpen(false)}
+              className="rounded-lg border border-border px-3 py-1.5 text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            >
+              Close
+            </button>
+            <button
+              onClick={() => {
+                void copy(md, "Markdown");
+                setMdOpen(false);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-ember px-3 py-1.5 text-sm font-medium text-[oklch(0.99_0.005_85)] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            >
+              <Copy className="size-3.5" /> Copy markdown
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </article>
   );
 }

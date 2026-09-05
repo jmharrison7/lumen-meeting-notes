@@ -12,6 +12,35 @@ export function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
+/** Full, unambiguous date for tooltips: "Tuesday, September 2, 2026 at 3:30 PM". */
+export function fullDate(iso: string) {
+  const d = new Date(iso);
+  return `${d.toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  })} at ${formatTime(iso)}`;
+}
+
+/** "Today", "Yesterday", "Tomorrow", else "Tue, Sep 2" (with year if not this year). */
+export function relativeDate(iso: string) {
+  const d = new Date(iso);
+  const today = new Date();
+  const a = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const b = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const diff = Math.round((a - b) / 86400000);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Tomorrow";
+  if (diff === -1) return "Yesterday";
+  return d.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    ...(d.getFullYear() === today.getFullYear() ? {} : { year: "numeric" }),
+  });
+}
+
 export function formatDuration(minutes: number) {
   if (minutes < 60) return `${minutes} min`;
   const h = Math.floor(minutes / 60);

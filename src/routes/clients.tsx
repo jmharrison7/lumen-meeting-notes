@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { listClients, listNotes } from "@/lib/api";
-import { formatDate, tagStyles } from "@/lib/format";
+import { fullDate, relativeDate, tagStyles } from "@/lib/format";
 import { EmptyState, ErrorState } from "@/components/lumen/primitives";
 import { cn } from "@/lib/utils";
 
@@ -71,7 +71,9 @@ function ClientsPage() {
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {c.meetingsThisMonth ?? 0} meetings in the last 30 days
-                  {c.lastMeetingAt ? ` · last on ${formatDate(c.lastMeetingAt)}` : ""}
+                  {c.lastMeetingAt ? (
+                    <span title={fullDate(c.lastMeetingAt)}> · last {relativeDate(c.lastMeetingAt).toLowerCase()}</span>
+                  ) : null}
                 </p>
                 {latest ? (
                   <p className="mt-4 line-clamp-3 text-sm leading-relaxed text-muted-foreground">
