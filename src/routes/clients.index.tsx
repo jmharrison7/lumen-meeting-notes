@@ -5,7 +5,7 @@ import { fullDate, relativeDate, tagStyles } from "@/lib/format";
 import { EmptyState, ErrorState } from "@/components/lumen/primitives";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/clients")({
+export const Route = createFileRoute("/clients/")({
   head: () => ({
     meta: [
       { title: "Clients — Lumen" },
