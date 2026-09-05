@@ -2,7 +2,10 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { listClients } from "@/lib/api";
 
-export type ClientChoice = { clientId?: string; newClient?: { name: string; note?: string } };
+export type ClientChoice = {
+  clientId?: string | undefined;
+  newClient?: { name: string; note?: string } | undefined;
+};
 
 /**
  * Client picker with an inline "＋ New client…" form. The new client isn't
