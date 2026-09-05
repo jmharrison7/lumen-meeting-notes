@@ -38,8 +38,9 @@ export async function getNote(id: string): Promise<Note | null> {
 export async function listClients(): Promise<Client[]> {
   if (BASE) return http<Client[]>("/clients");
   await delay(240);
-  return clone(clientsWithStats());
+  return clone([...clientsWithStats(), ...ensureCustomClients()]);
 }
+
 
 export async function listActionItems(): Promise<ActionItem[]> {
   if (BASE) return http<ActionItem[]>("/action-items");
