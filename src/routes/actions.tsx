@@ -13,6 +13,7 @@ import {
   SectionTitle,
 } from "@/components/lumen/primitives";
 import { useUi } from "@/lib/ui-store";
+import { useAccess } from "@/lib/access-store";
 import { cn } from "@/lib/utils";
 import type { ActionItem } from "@/lib/types";
 
@@ -44,12 +45,16 @@ const groups = [
 
 function ActionsPage() {
   const { applyItem, patchItem } = useUi();
+  const { canSeeClient, canEdit } = useAccess();
   const items = useQuery({ queryKey: ["actionItems"], queryFn: listActionItems });
   const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
   const [clientFilter, setClientFilter] = useState("all");
   const [ownerFilter, setOwnerFilter] = useState("all");
 
-  const all = useMemo(() => (items.data ?? []).map(applyItem), [items.data, applyItem]);
+  const all = useMemo(
+    () => (items.data ?? []).map(applyItem).filter((a) => canSeeClient(a.clientId)),
+    [items.data, applyItem, canSeeClient],
+  );
   const owners = useMemo(() => [...new Set(all.map((a) => a.owner))].sort(), [all]);
 
   const filtered = all.filter(

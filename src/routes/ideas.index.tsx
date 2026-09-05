@@ -5,6 +5,7 @@ import { listClients, listIdeas } from "@/lib/api";
 import { EmptyState, ErrorState, ListSkeleton, SectionTitle } from "@/components/lumen/primitives";
 import { IdeasGrid } from "@/components/lumen/IdeasGrid";
 import { QuickCapture } from "@/components/lumen/QuickCapture";
+import { useAccess } from "@/lib/access-store";
 
 export const Route = createFileRoute("/ideas/")({
   head: () => ({
@@ -34,7 +35,10 @@ function IdeasPage() {
   const [client, setClient] = useState("all");
   const [tag, setTag] = useState("all");
 
-  const all = ideas.data ?? [];
+  const { canSeeClient, isOwner } = useAccess();
+  const all = (ideas.data ?? []).filter((i) =>
+    i.clientId ? canSeeClient(i.clientId) : isOwner,
+  );
   const allTags = useMemo(
     () => Array.from(new Set(all.flatMap((i) => i.tags))).sort(),
     [all],

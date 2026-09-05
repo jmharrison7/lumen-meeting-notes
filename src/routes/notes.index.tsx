@@ -7,6 +7,7 @@ import { EmptyState, ErrorState, ListSkeleton } from "@/components/lumen/primiti
 import { NoteRow } from "@/components/lumen/NoteRow";
 import { useUi } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
+import { useAccess } from "@/lib/access-store";
 
 export const Route = createFileRoute("/notes/")({
   head: () => ({
@@ -35,6 +36,7 @@ function NotesPage() {
   const { client: clientParam } = Route.useSearch();
   const { hiddenNotes, hideNotes, applyItem } = useUi();
   const qc = useQueryClient();
+  const { canSeeClient, canEdit } = useAccess();
   const notes = useQuery({ queryKey: ["notes"], queryFn: listNotes });
   const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
 
@@ -51,7 +53,7 @@ function NotesPage() {
   );
 
   const rows = useMemo(() => {
-    let list = (notes.data ?? []).filter((n) => !hiddenNotes.includes(n.id));
+    let list = (notes.data ?? []).filter((n) => !hiddenNotes.includes(n.id) && canSeeClient(n.clientId));
     if (clientFilter !== "all") list = list.filter((n) => n.clientId === clientFilter);
     if (tagFilter !== "all") list = list.filter((n) => n.tags.includes(tagFilter));
     if (onlyActions)

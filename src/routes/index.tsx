@@ -9,6 +9,7 @@ import { InstallHint } from "@/components/lumen/InstallHint";
 import { LiveCard } from "@/components/lumen/LiveCard";
 
 import { useUi } from "@/lib/ui-store";
+import { useAccess } from "@/lib/access-store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -38,6 +39,7 @@ function greeting() {
 
 function TodayPage() {
   const { applyItem, hiddenNotes } = useUi();
+  const { canSeeClient } = useAccess();
   const events = useQuery({ queryKey: ["events"], queryFn: listTodayEvents });
   const notes = useQuery({ queryKey: ["notes"], queryFn: listNotes });
   const ideas = useQuery({ queryKey: ["ideas"], queryFn: listIdeas });
@@ -45,16 +47,18 @@ function TodayPage() {
   const items = useQuery({ queryKey: ["actionItems"], queryFn: listActionItems });
 
   const clientOf = (id: string) => clients.data?.find((c) => c.id === id);
-  const open = (items.data ?? []).map(applyItem).filter((a) => !a.done);
+  const open = (items.data ?? []).map(applyItem).filter((a) => !a.done && canSeeClient(a.clientId));
   const counts = {
     overdue: open.filter((a) => dueBucket(a.dueDate) === "overdue").length,
     today: open.filter((a) => dueBucket(a.dueDate) === "today").length,
     upcoming: open.filter((a) => ["week", "later"].includes(dueBucket(a.dueDate))).length,
   };
 
-  const recentIdeas = (ideas.data ?? []).slice(0, 3);
+  const recentIdeas = (ideas.data ?? [])
+    .filter((i) => !i.clientId || canSeeClient(i.clientId))
+    .slice(0, 3);
   const latest = (notes.data ?? [])
-    .filter((n) => !hiddenNotes.includes(n.id))
+    .filter((n) => !hiddenNotes.includes(n.id) && canSeeClient(n.clientId))
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 3);
 
