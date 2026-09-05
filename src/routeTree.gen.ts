@@ -10,33 +10,91 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ActionsRouteImport } from './routes/actions'
+import { Route as ClientsRouteImport } from './routes/clients'
+import { Route as SearchRouteImport } from './routes/search'
+import { Route as NotesIndexRouteImport } from './routes/notes.index'
+import { Route as NotesNoteIdRouteImport } from './routes/notes.$noteId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ActionsRoute = ActionsRouteImport.update({
+  id: '/actions',
+  path: '/actions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClientsRoute = ClientsRouteImport.update({
+  id: '/clients',
+  path: '/clients',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotesIndexRoute = NotesIndexRouteImport.update({
+  id: '/notes/',
+  path: '/notes/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotesNoteIdRoute = NotesNoteIdRouteImport.update({
+  id: '/notes/$noteId',
+  path: '/notes/$noteId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/actions': typeof ActionsRoute
+  '/clients': typeof ClientsRoute
+  '/search': typeof SearchRoute
+  '/notes/$noteId': typeof NotesNoteIdRoute
+  '/notes/': typeof NotesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/actions': typeof ActionsRoute
+  '/clients': typeof ClientsRoute
+  '/search': typeof SearchRoute
+  '/notes/$noteId': typeof NotesNoteIdRoute
+  '/notes': typeof NotesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/actions': typeof ActionsRoute
+  '/clients': typeof ClientsRoute
+  '/search': typeof SearchRoute
+  '/notes/$noteId': typeof NotesNoteIdRoute
+  '/notes/': typeof NotesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    '/' | '/actions' | '/clients' | '/search' | '/notes/$noteId' | '/notes/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/actions' | '/clients' | '/search' | '/notes/$noteId' | '/notes'
+  id:
+    | '__root__'
+    | '/'
+    | '/actions'
+    | '/clients'
+    | '/search'
+    | '/notes/$noteId'
+    | '/notes/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ActionsRoute: typeof ActionsRoute
+  ClientsRoute: typeof ClientsRoute
+  SearchRoute: typeof SearchRoute
+  NotesNoteIdRoute: typeof NotesNoteIdRoute
+  NotesIndexRoute: typeof NotesIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +106,51 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/actions': {
+      id: '/actions'
+      path: '/actions'
+      fullPath: '/actions'
+      preLoaderRoute: typeof ActionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/clients': {
+      id: '/clients'
+      path: '/clients'
+      fullPath: '/clients'
+      preLoaderRoute: typeof ClientsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notes/': {
+      id: '/notes/'
+      path: '/notes'
+      fullPath: '/notes/'
+      preLoaderRoute: typeof NotesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notes/$noteId': {
+      id: '/notes/$noteId'
+      path: '/notes/$noteId'
+      fullPath: '/notes/$noteId'
+      preLoaderRoute: typeof NotesNoteIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ActionsRoute: ActionsRoute,
+  ClientsRoute: ClientsRoute,
+  SearchRoute: SearchRoute,
+  NotesNoteIdRoute: NotesNoteIdRoute,
+  NotesIndexRoute: NotesIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
