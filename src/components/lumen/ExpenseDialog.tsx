@@ -152,8 +152,14 @@ export function ExpenseDialog({
 
   async function save(force = false) {
     const amt = Number(amount);
-    if (!vendor.trim()) return toast.error("Who was it paid to?");
-    if (!Number.isFinite(amt) || amt <= 0) return toast.error("Add an amount.");
+    if (!vendor.trim()) {
+      toast.error("Who was it paid to?");
+      return;
+    }
+    if (!Number.isFinite(amt) || amt <= 0) {
+      toast.error("Add an amount.");
+      return;
+    }
     if (!force) {
       const d = findDuplicate();
       if (d) {
