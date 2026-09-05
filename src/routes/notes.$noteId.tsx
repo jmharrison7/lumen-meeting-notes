@@ -49,6 +49,7 @@ import type { ActionItem } from "@/lib/types";
 import { FollowUpDialog } from "@/components/lumen/FollowUpDialog";
 import { MentionBanner } from "@/components/lumen/Mentions";
 import { PlaybackBar, TimeChip } from "@/components/lumen/PlaybackBar";
+import { AddAttendees } from "@/components/lumen/AddAttendees";
 import { ShareRecapDialog } from "@/components/lumen/ShareRecapDialog";
 import { AskPanel } from "@/components/lumen/AskPanel";
 import { ShareLinkDialog } from "@/components/lumen/ShareLinkDialog";
