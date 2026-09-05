@@ -13,6 +13,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppShell } from "@/components/lumen/AppShell";
 import { UiStateProvider } from "@/lib/ui-store";
+import { AccessProvider } from "@/lib/access-store";
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
