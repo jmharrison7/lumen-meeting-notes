@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Mic, Square, Upload, X } from "lucide-react";
 import { toast } from "sonner";
-import { createIdea, listClients, titleFromTranscript, transcribeAudio } from "@/lib/api";
+import { createIdea, titleFromTranscript, transcribeAudio } from "@/lib/api";
 import { clock } from "@/lib/format";
 import type { IdeaSource } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -15,15 +15,8 @@ type Draft = {
   fileLabel?: string | undefined;
 };
 
-export function QuickCapture({
-  defaultClientId,
-  lockedClientName,
-}: {
-  defaultClientId?: string | undefined;
-  lockedClientName?: string | undefined;
-}) {
+export function QuickCapture({ defaultClientId }: { defaultClientId?: string | undefined }) {
   const qc = useQueryClient();
-  const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [transcribing, setTranscribing] = useState(false);
