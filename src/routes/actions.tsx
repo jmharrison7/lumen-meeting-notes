@@ -158,6 +158,7 @@ function ActionsPage() {
                     clientName={clientOf(a.clientId)?.name}
                     color={clientOf(a.clientId)?.tagColor}
                     onToggle={() => void toggle(a)}
+                    readOnly={!canEdit}
                   />
                 ))}
               </div>
