@@ -1374,3 +1374,53 @@ export async function suggestedContacts(): Promise<
   }
   return [...out.values()].slice(0, 6);
 }
+
+/* ---------------------------------- Auth ---------------------------------- */
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export type WhoAmI =
+  | { authenticated: true; user: AuthUser; grants: string[] }
+  | { authenticated: false };
+
+let mockSignedOut = false;
+
+export async function whoAmI(): Promise<WhoAmI> {
+  if (BASE) {
+    try {
+      return await http<WhoAmI>("/auth/me");
+    } catch {
+      return { authenticated: false };
+    }
+  }
+  await delay(220);
+  if (mockSignedOut) return { authenticated: false };
+  return {
+    authenticated: true,
+    user: { id: "u-mary", name: "Mary Alcott", email: "mary@embr.studio" },
+    grants: [],
+  };
+}
+
+export async function requestMagicLink(email: string): Promise<{ ok: boolean; message: string }> {
+  if (BASE)
+    return http<{ ok: boolean; message: string }>("/auth/magic", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  await delay(500);
+  return { ok: true, message: `If ${email} belongs to Lumen, a link is on its way.` };
+}
+
+export async function signOut(): Promise<void> {
+  if (BASE) {
+    await http<void>("/auth/logout", { method: "POST" });
+    return;
+  }
+  await delay(200);
+  mockSignedOut = true;
+}
