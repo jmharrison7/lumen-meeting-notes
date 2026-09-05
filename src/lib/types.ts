@@ -85,3 +85,33 @@ export interface FollowUpDraft {
   bodyMarkdown: string;
   bodyText: string;
 }
+
+export type DocKind = "slides" | "docs" | "sheets" | "file";
+
+export interface ClientFile {
+  id: string;
+  clientId: string;
+  kind: DocKind;
+  name: string;
+  source: "drive" | "upload";
+  url?: string | undefined;
+  mime?: string | undefined;
+  sizeBytes?: number | undefined;
+  label?: string | undefined;
+  tags: string[];
+  createdAtISO: string;
+  modifiedAtISO?: string | undefined;
+}
+
+export type TemplateKind = "estimate" | "brand" | "proposal" | "agenda" | "other";
+
+export interface Template {
+  id: string;
+  clientId?: string | undefined;
+  name: string;
+  kind: TemplateKind;
+  source: "upload" | "drive";
+  url?: string | undefined;
+  sizeBytes?: number | undefined;
+  createdAtISO: string;
+}
