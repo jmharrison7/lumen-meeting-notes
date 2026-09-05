@@ -13,6 +13,7 @@ import {
   Lightbulb,
   LogOut,
   Moon,
+  Wallet,
 
   Search,
   Sun,
@@ -42,6 +43,7 @@ const nav = [
   { to: "/actions", label: "Action Items", icon: CheckSquare, exact: false },
   { to: "/clients", label: "Clients", icon: Users, exact: false },
   { to: "/ideas", label: "Ideas", icon: Lightbulb, exact: false },
+  { to: "/money", label: "Money", icon: Wallet, exact: false },
   { to: "/templates", label: "Templates", icon: LayoutTemplate, exact: false },
   { to: "/contacts", label: "Contacts", icon: BookUser, exact: false },
   { to: "/collaborators", label: "Collaborators", icon: UserCog, exact: false },
@@ -95,7 +97,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const { previewing, collaborators, previewAs, isOwner } = useAccess();
   const visibleNav = nav.filter(
-    (n) => isOwner || !["/templates", "/alerts", "/collaborators", "/contacts"].includes(n.to),
+    (n) => isOwner || !["/money", "/templates", "/alerts", "/collaborators", "/contacts"].includes(n.to),
   );
 
   const { data: notes } = useQuery({ queryKey: ["notes"], queryFn: listNotes });
