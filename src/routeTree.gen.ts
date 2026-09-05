@@ -16,6 +16,7 @@ import { Route as SearchRouteImport } from './routes/search'
 import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as ClientsIndexRouteImport } from './routes/clients.index'
 import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
+import { Route as IdeasIndexRouteImport } from './routes/ideas.index'
 import { Route as LiveIndexRouteImport } from './routes/live.index'
 import { Route as LiveSessionIdRouteImport } from './routes/live.$sessionId'
 import { Route as NotesIndexRouteImport } from './routes/notes.index'
@@ -56,6 +57,11 @@ const ClientsClientIdRoute = ClientsClientIdRouteImport.update({
   path: '/clients/$clientId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const IdeasIndexRoute = IdeasIndexRouteImport.update({
+  id: '/ideas/',
+  path: '/ideas/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LiveIndexRoute = LiveIndexRouteImport.update({
   id: '/live/',
   path: '/live/',
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/live/$sessionId': typeof LiveSessionIdRoute
   '/notes/$noteId': typeof NotesNoteIdRoute
   '/clients/': typeof ClientsIndexRoute
+  '/ideas/': typeof IdeasIndexRoute
   '/live/': typeof LiveIndexRoute
   '/notes/': typeof NotesIndexRoute
 }
@@ -100,6 +107,7 @@ export interface FileRoutesByTo {
   '/live/$sessionId': typeof LiveSessionIdRoute
   '/notes/$noteId': typeof NotesNoteIdRoute
   '/clients': typeof ClientsIndexRoute
+  '/ideas': typeof IdeasIndexRoute
   '/live': typeof LiveIndexRoute
   '/notes': typeof NotesIndexRoute
 }
@@ -114,6 +122,7 @@ export interface FileRoutesById {
   '/live/$sessionId': typeof LiveSessionIdRoute
   '/notes/$noteId': typeof NotesNoteIdRoute
   '/clients/': typeof ClientsIndexRoute
+  '/ideas/': typeof IdeasIndexRoute
   '/live/': typeof LiveIndexRoute
   '/notes/': typeof NotesIndexRoute
 }
@@ -129,6 +138,7 @@ export interface FileRouteTypes {
     | '/live/$sessionId'
     | '/notes/$noteId'
     | '/clients/'
+    | '/ideas/'
     | '/live/'
     | '/notes/'
   fileRoutesByTo: FileRoutesByTo
@@ -142,6 +152,7 @@ export interface FileRouteTypes {
     | '/live/$sessionId'
     | '/notes/$noteId'
     | '/clients'
+    | '/ideas'
     | '/live'
     | '/notes'
   id:
@@ -155,6 +166,7 @@ export interface FileRouteTypes {
     | '/live/$sessionId'
     | '/notes/$noteId'
     | '/clients/'
+    | '/ideas/'
     | '/live/'
     | '/notes/'
   fileRoutesById: FileRoutesById
@@ -169,6 +181,7 @@ export interface RootRouteChildren {
   LiveSessionIdRoute: typeof LiveSessionIdRoute
   NotesNoteIdRoute: typeof NotesNoteIdRoute
   ClientsIndexRoute: typeof ClientsIndexRoute
+  IdeasIndexRoute: typeof IdeasIndexRoute
   LiveIndexRoute: typeof LiveIndexRoute
   NotesIndexRoute: typeof NotesIndexRoute
 }
@@ -224,6 +237,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientsClientIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ideas/': {
+      id: '/ideas/'
+      path: '/ideas'
+      fullPath: '/ideas/'
+      preLoaderRoute: typeof IdeasIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/live/': {
       id: '/live/'
       path: '/live'
@@ -265,6 +285,7 @@ const rootRouteChildren: RootRouteChildren = {
   LiveSessionIdRoute: LiveSessionIdRoute,
   NotesNoteIdRoute: NotesNoteIdRoute,
   ClientsIndexRoute: ClientsIndexRoute,
+  IdeasIndexRoute: IdeasIndexRoute,
   LiveIndexRoute: LiveIndexRoute,
   NotesIndexRoute: NotesIndexRoute,
 }
