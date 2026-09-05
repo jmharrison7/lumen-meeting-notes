@@ -405,3 +405,149 @@ export async function deleteTemplate(id: string): Promise<void> {
   const i = templates.findIndex((t) => t.id === id);
   if (i >= 0) templates.splice(i, 1);
 }
+
+/* --------------------------------- Alerts -------------------------------- */
+
+import {
+  clientConfigs,
+  defaultGlobalConfig,
+  globalConfig,
+  setGlobalConfig,
+  TOPIC_PHRASES,
+} from "./alerts-mock";
+import type { ClientAlertConfig, GlobalAlertConfig, MentionHit } from "./types";
+
+const ALERT_KEY = "lumen.alerts.v1";
+
+function loadAlerts() {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = window.localStorage.getItem(ALERT_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as {
+      global?: GlobalAlertConfig;
+      clients?: Record<string, ClientAlertConfig>;
+    };
+    if (parsed.global) setGlobalConfig(parsed.global);
+    if (parsed.clients) Object.assign(clientConfigs, parsed.clients);
+  } catch {
+    /* ignore malformed storage */
+  }
+}
+
+function persistAlerts() {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(
+    ALERT_KEY,
+    JSON.stringify({ global: globalConfig, clients: clientConfigs }),
+  );
+}
+
+let alertsLoaded = false;
+function ensureAlerts() {
+  if (!alertsLoaded) {
+    loadAlerts();
+    alertsLoaded = true;
+  }
+}
+
+export async function getAlertConfig(): Promise<GlobalAlertConfig> {
+  if (BASE) return http<GlobalAlertConfig>("/alerts");
+  await delay(200);
+  ensureAlerts();
+  return clone(globalConfig);
+}
+
+export async function saveAlertConfig(cfg: GlobalAlertConfig): Promise<GlobalAlertConfig> {
+  if (BASE) return http<GlobalAlertConfig>("/alerts", { method: "PUT", body: JSON.stringify(cfg) });
+  await delay(140);
+  setGlobalConfig(clone(cfg));
+  persistAlerts();
+  return clone(cfg);
+}
+
+export async function resetAlertConfig(): Promise<GlobalAlertConfig> {
+  return saveAlertConfig(defaultGlobalConfig());
+}
+
+export async function getClientAlertConfig(clientId: string): Promise<ClientAlertConfig> {
+  if (BASE) return http<ClientAlertConfig>(`/alerts/clients/${clientId}`);
+  await delay(180);
+  ensureAlerts();
+  return clone(clientConfigs[clientId] ?? { clientId, inheritGlobal: true, rules: [] });
+}
+
+export async function saveClientAlertConfig(
+  clientId: string,
+  cfg: ClientAlertConfig,
+): Promise<ClientAlertConfig> {
+  if (BASE)
+    return http<ClientAlertConfig>(`/alerts/clients/${clientId}`, {
+      method: "PUT",
+      body: JSON.stringify(cfg),
+    });
+  await delay(140);
+  clientConfigs[clientId] = clone(cfg);
+  persistAlerts();
+  return clone(cfg);
+}
+
+function snippetAround(text: string, index: number, len: number) {
+  const start = Math.max(0, index - 70);
+  const end = Math.min(text.length, index + len + 70);
+  return `${start > 0 ? "…" : ""}${text.slice(start, end).trim()}${end < text.length ? "…" : ""}`;
+}
+
+function timestampNear(text: string, index: number): number | undefined {
+  const before = text.slice(Math.max(0, index - 400), index);
+  const matches = [...before.matchAll(/\((\d{1,2}):(\d{2})\)/g)];
+  const last = matches[matches.length - 1];
+  if (!last) return undefined;
+  return Number(last[1]) * 60 + Number(last[2]);
+}
+
+export async function getMentionHits(noteId: string): Promise<MentionHit[]> {
+  if (BASE) return http<MentionHit[]>(`/notes/${noteId}/mentions`);
+  ensureAlerts();
+  const note = notes.find((n) => n.id === noteId);
+  if (!note) return [];
+  const client = clientConfigs[note.clientId];
+  const rules = [
+    ...(client && !client.inheritGlobal ? [] : globalConfig.rules),
+    ...(client?.rules ?? []),
+  ].filter((r) => r.enabled);
+
+  const haystack = [note.summary, ...note.decisions, ...note.openQuestions, note.transcript].join(
+    "\n",
+  );
+  const lower = haystack.toLowerCase();
+  const hits: MentionHit[] = [];
+
+  for (const rule of rules) {
+    const i = lower.indexOf(rule.term.toLowerCase());
+    if (i >= 0)
+      hits.push({
+        term: rule.term,
+        snippet: snippetAround(haystack, i, rule.term.length),
+        atSeconds: timestampNear(haystack, i),
+      });
+  }
+
+  if (globalConfig.topics.enabled) {
+    for (const topic of globalConfig.topics.topics.filter((t) => t.enabled)) {
+      for (const phrase of TOPIC_PHRASES[topic.key] ?? []) {
+        const i = lower.indexOf(phrase);
+        if (i >= 0) {
+          hits.push({
+            term: topic.label,
+            topic: topic.key,
+            snippet: snippetAround(haystack, i, phrase.length),
+            atSeconds: timestampNear(haystack, i),
+          });
+          break;
+        }
+      }
+    }
+  }
+  return hits;
+}
