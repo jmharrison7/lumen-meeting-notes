@@ -1017,7 +1017,7 @@ export async function suggestClientForIdea(
   const lower = `${idea.title} ${idea.transcript}`.toLowerCase();
   const projectWord = projectWords.find((w) => lower.includes(w));
   if (projectWord) {
-    return { reason: `sounds like a new project — it mentions “${projectWord}”` };
+    return { reason: `it mentions “${projectWord}”` };
   }
   return null;
 }
