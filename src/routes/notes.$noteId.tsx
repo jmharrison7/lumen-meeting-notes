@@ -68,6 +68,7 @@ function NoteDetail() {
   const [showTranscript, setShowTranscript] = useState(false);
   const [editing, setEditing] = useState(false);
   const [mdOpen, setMdOpen] = useState(false);
+  const [followUpOpen, setFollowUpOpen] = useState(false);
 
   const note = useQuery({ queryKey: ["note", noteId], queryFn: () => getNote(noteId) });
   const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
