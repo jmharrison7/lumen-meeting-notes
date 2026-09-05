@@ -772,3 +772,147 @@ export async function shareRecap(
   if (opts.channel === "text") return { channel: "text", text: `${recap.subject}\n\n${recap.body}` };
   return { channel: "email", sentTo: to };
 }
+
+/* ------------------------------ Ideas & DNA ------------------------------ */
+
+import { nextMockTranscript, seedBrandDna, seedIdeas, suggestTitle } from "./ideas-mock";
+import type { BrandDNA, Idea } from "./types";
+
+const IDEAS_KEY = "lumen.ideas.v1";
+const DNA_KEY = "lumen.branddna.v1";
+
+let ideasStore: Idea[] | null = null;
+let dnaStore: Record<string, BrandDNA> | null = null;
+
+function ensureIdeas(): Idea[] {
+  if (ideasStore) return ideasStore;
+  ideasStore = clone(seedIdeas);
+  if (typeof window !== "undefined") {
+    try {
+      const raw = window.localStorage.getItem(IDEAS_KEY);
+      if (raw) ideasStore = JSON.parse(raw) as Idea[];
+    } catch {
+      /* ignore malformed storage */
+    }
+  }
+  return ideasStore;
+}
+
+function persistIdeas() {
+  if (typeof window === "undefined" || !ideasStore) return;
+  window.localStorage.setItem(IDEAS_KEY, JSON.stringify(ideasStore));
+}
+
+function ensureDna(): Record<string, BrandDNA> {
+  if (dnaStore) return dnaStore;
+  dnaStore = clone(seedBrandDna);
+  if (typeof window !== "undefined") {
+    try {
+      const raw = window.localStorage.getItem(DNA_KEY);
+      if (raw) dnaStore = { ...dnaStore, ...(JSON.parse(raw) as Record<string, BrandDNA>) };
+    } catch {
+      /* ignore malformed storage */
+    }
+  }
+  return dnaStore;
+}
+
+function persistDna() {
+  if (typeof window === "undefined" || !dnaStore) return;
+  window.localStorage.setItem(DNA_KEY, JSON.stringify(dnaStore));
+}
+
+export async function listIdeas(): Promise<Idea[]> {
+  if (BASE) return http<Idea[]>("/ideas");
+  await delay(260);
+  return clone(ensureIdeas()).sort((a, b) => b.createdAtISO.localeCompare(a.createdAtISO));
+}
+
+export async function getIdea(id: string): Promise<Idea | null> {
+  if (BASE) return http<Idea | null>(`/ideas/${id}`);
+  await delay(220);
+  return clone(ensureIdeas().find((i) => i.id === id) ?? null);
+}
+
+export async function createIdea(
+  input: Omit<Idea, "id" | "createdAtISO"> & { createdAtISO?: string },
+): Promise<Idea> {
+  if (BASE) return http<Idea>("/ideas", { method: "POST", body: JSON.stringify(input) });
+  await delay(320);
+  const idea: Idea = {
+    ...input,
+    id: `i-${Date.now().toString(36)}`,
+    createdAtISO: input.createdAtISO ?? new Date().toISOString(),
+  };
+  ensureIdeas().unshift(idea);
+  persistIdeas();
+  return clone(idea);
+}
+
+export async function updateIdea(id: string, patch: Partial<Idea>): Promise<Idea> {
+  if (BASE) return http<Idea>(`/ideas/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
+  await delay(200);
+  const list = ensureIdeas();
+  const idx = list.findIndex((i) => i.id === id);
+  if (idx < 0) throw new Error("Idea not found");
+  list[idx] = { ...list[idx]!, ...patch };
+  persistIdeas();
+  return clone(list[idx]!);
+}
+
+export async function deleteIdea(id: string): Promise<void> {
+  if (BASE) {
+    await http<void>(`/ideas/${id}`, { method: "DELETE" });
+    return;
+  }
+  await delay(180);
+  ideasStore = ensureIdeas().filter((i) => i.id !== id);
+  persistIdeas();
+}
+
+export async function transcribeAudio(
+  file: File | Blob,
+): Promise<{ transcript: string; durationSeconds?: number }> {
+  if (BASE) {
+    const form = new FormData();
+    form.append("audio", file, file instanceof File ? file.name : "recording.webm");
+    const res = await fetch(`${BASE}/transcribe`, { method: "POST", body: form });
+    if (!res.ok) throw new Error(`Transcription failed: ${res.status}`);
+    return (await res.json()) as { transcript: string; durationSeconds?: number };
+  }
+  await delay(1200);
+  return nextMockTranscript();
+}
+
+export function titleFromTranscript(transcript: string) {
+  return suggestTitle(transcript);
+}
+
+export async function getBrandDNA(clientId: string): Promise<BrandDNA> {
+  if (BASE) return http<BrandDNA>(`/clients/${clientId}/brand-dna`);
+  await delay(240);
+  const store = ensureDna();
+  return clone(
+    store[clientId] ?? {
+      clientId,
+      voice: [],
+      always: [],
+      never: [],
+      tone: "",
+      updatedAtISO: new Date().toISOString(),
+    },
+  );
+}
+
+export async function saveBrandDNA(clientId: string, dna: BrandDNA): Promise<BrandDNA> {
+  if (BASE)
+    return http<BrandDNA>(`/clients/${clientId}/brand-dna`, {
+      method: "PUT",
+      body: JSON.stringify(dna),
+    });
+  await delay(280);
+  const next: BrandDNA = { ...clone(dna), clientId, updatedAtISO: new Date().toISOString() };
+  ensureDna()[clientId] = next;
+  persistDna();
+  return clone(next);
+}

@@ -190,3 +190,26 @@ export interface ShareResult {
   link?: string | undefined;
   text?: string | undefined;
 }
+
+export type IdeaSource = "recorded" | "uploaded" | "typed";
+
+export interface Idea {
+  id: string;
+  title: string;
+  transcript: string;
+  clientId?: string | undefined;
+  tags: string[];
+  source: IdeaSource;
+  durationSeconds?: number | undefined;
+  createdAtISO: string;
+  convertedToNoteId?: string | undefined;
+}
+
+export interface BrandDNA {
+  clientId: string;
+  voice: string[];
+  always: string[];
+  never: string[];
+  tone: string;
+  updatedAtISO: string;
+}

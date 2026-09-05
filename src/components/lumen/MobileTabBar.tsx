@@ -1,12 +1,12 @@
 import { Link } from "@tanstack/react-router";
-import { Briefcase, CheckCircle2, FileText, Home, LayoutTemplate, Search } from "lucide-react";
+import { Briefcase, CheckCircle2, FileText, Home, Lightbulb, Search } from "lucide-react";
 
 const tabs = [
   { to: "/", label: "Today", icon: Home, exact: true },
   { to: "/notes", label: "Notes", icon: FileText, exact: false },
   { to: "/actions", label: "Actions", icon: CheckCircle2, exact: false },
   { to: "/clients", label: "Clients", icon: Briefcase, exact: false },
-  { to: "/templates", label: "Files", icon: LayoutTemplate, exact: false },
+  { to: "/ideas", label: "Ideas", icon: Lightbulb, exact: false },
   { to: "/search", label: "Search", icon: Search, exact: false },
 ] as const;
 

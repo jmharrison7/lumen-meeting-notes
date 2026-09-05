@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Clock } from "lucide-react";
-import { listActionItems, listClients, listNotes, listTodayEvents } from "@/lib/api";
-import { dueBucket, formatTime } from "@/lib/format";
+import { listActionItems, listClients, listIdeas, listNotes, listTodayEvents } from "@/lib/api";
+import { dueBucket, formatTime, relativeDate } from "@/lib/format";
 import { ClientChip, EmptyState, ListSkeleton, PlatformBadge, SectionTitle } from "@/components/lumen/primitives";
 import { NoteRow } from "@/components/lumen/NoteRow";
 import { InstallHint } from "@/components/lumen/InstallHint";
@@ -40,6 +40,7 @@ function TodayPage() {
   const { applyItem, hiddenNotes } = useUi();
   const events = useQuery({ queryKey: ["events"], queryFn: listTodayEvents });
   const notes = useQuery({ queryKey: ["notes"], queryFn: listNotes });
+  const ideas = useQuery({ queryKey: ["ideas"], queryFn: listIdeas });
   const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
   const items = useQuery({ queryKey: ["actionItems"], queryFn: listActionItems });
 
@@ -51,6 +52,7 @@ function TodayPage() {
     upcoming: open.filter((a) => ["week", "later"].includes(dueBucket(a.dueDate))).length,
   };
 
+  const recentIdeas = (ideas.data ?? []).slice(0, 3);
   const latest = (notes.data ?? [])
     .filter((n) => !hiddenNotes.includes(n.id))
     .sort((a, b) => b.date.localeCompare(a.date))
@@ -121,6 +123,40 @@ function TodayPage() {
             Open list <ArrowRight className="size-3.5" />
           </span>
         </Link>
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex items-baseline justify-between">
+          <SectionTitle>Recent ideas</SectionTitle>
+          <Link to="/ideas" className="text-xs text-muted-foreground hover:text-ember">
+            Capture a thought
+          </Link>
+        </div>
+        {recentIdeas.length === 0 ? (
+          <EmptyState
+            title="No ideas yet — say the first one out loud"
+            body="Record a thought or upload a voice memo from your phone."
+            actionLabel="Open Ideas"
+            actionTo="/ideas"
+          />
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-3">
+            {recentIdeas.map((i) => (
+              <Link
+                key={i.id}
+                to="/ideas/$ideaId"
+                params={{ ideaId: i.id }}
+                className="rounded-xl border border-hairline bg-card p-4 transition-shadow hover:shadow-soft"
+              >
+                <p className="text-title line-clamp-2 text-[15px] font-medium leading-snug">{i.title}</p>
+                <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                  {i.transcript}
+                </p>
+                <p className="mt-2 text-[11px] text-muted-foreground">{relativeDate(i.createdAtISO)}</p>
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="space-y-3">

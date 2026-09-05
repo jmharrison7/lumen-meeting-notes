@@ -8,6 +8,7 @@ import { NoteRow } from "@/components/lumen/NoteRow";
 import { FilesPanel } from "@/components/lumen/FilesPanel";
 import { TemplatesPanel } from "@/components/lumen/TemplatesPanel";
 import { AskPanel } from "@/components/lumen/AskPanel";
+import { BrandDnaPanel } from "@/components/lumen/BrandDnaPanel";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/clients/$clientId")({
@@ -28,7 +29,7 @@ export const Route = createFileRoute("/clients/$clientId")({
   component: ClientDetail,
 });
 
-const tabs = ["Notes", "Files", "Templates", "Ask"] as const;
+const tabs = ["Notes", "Files", "Brand DNA", "Templates", "Ask"] as const;
 
 function ClientDetail() {
   const { clientId } = Route.useParams();
@@ -108,6 +109,8 @@ function ClientDetail() {
         )
       ) : tab === "Files" ? (
         <FilesPanel clientId={clientId} />
+      ) : tab === "Brand DNA" ? (
+        <BrandDnaPanel clientId={clientId} />
       ) : tab === "Templates" ? (
         <TemplatesPanel clientId={clientId} />
       ) : (
