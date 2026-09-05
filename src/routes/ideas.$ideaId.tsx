@@ -6,6 +6,9 @@ import { toast } from "sonner";
 import { deleteIdea, getIdea, listClients, updateIdea } from "@/lib/api";
 import { clock, fullDate, relativeDate } from "@/lib/format";
 import { ErrorState, ListSkeleton } from "@/components/lumen/primitives";
+import { IdeaSuggestion } from "@/components/lumen/IdeaSuggestion";
+import { ClientSelect } from "@/components/lumen/ClientSelect";
+import { createClient } from "@/lib/api";
 
 export const Route = createFileRoute("/ideas/$ideaId")({
   head: () => ({
@@ -98,6 +101,8 @@ function IdeaDetail() {
         </button>
       </div>
 
+      <IdeaSuggestion idea={i} />
+
       <article className="rounded-xl border border-hairline bg-card p-5 text-[15px] leading-relaxed">
         {i.transcript}
       </article>
@@ -135,22 +140,16 @@ function IdeaDetail() {
             aria-label="Add a tag"
             className="min-h-[38px] w-32 rounded-lg border border-hairline bg-surface px-2.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ember/40"
           />
-          <select
-            value={clientId}
-            onChange={(e) => {
-              setClientId(e.target.value);
-              void persist({ clientId: e.target.value || undefined });
-            }}
-            aria-label="Assign to a client"
-            className="ml-auto min-h-[38px] rounded-lg border border-hairline bg-surface px-2.5 text-xs"
-          >
-            <option value="">Personal / General</option>
-            {(clients.data ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          <div className="ml-auto">
+            <ClientSelect
+              value={clientId}
+              onChange={async (choice) => {
+                if (choice.newClient) return;
+                setClientId(choice.clientId ?? "");
+                await persist({ clientId: choice.clientId });
+              }}
+            />
+          </div>
         </div>
       </section>
     </div>
