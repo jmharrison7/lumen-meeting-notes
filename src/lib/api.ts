@@ -10,14 +10,27 @@ const BASE = import.meta.env["VITE_API_URL"] as string | undefined;
 
 const delay = (ms = 320 + Math.random() * 160) => new Promise((r) => setTimeout(r, ms));
 
+export class UnauthorizedError extends Error {
+  constructor() {
+    super("Unauthorized");
+    this.name = "UnauthorizedError";
+  }
+}
+
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
+    credentials: "include",
     headers: { "content-type": "application/json" },
     ...init,
   });
+  if (res.status === 401) {
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("lumen:unauthorized"));
+    throw new UnauthorizedError();
+  }
   if (!res.ok) throw new Error(`Request failed: ${res.status}`);
   return (await res.json()) as T;
 }
+
 
 function clone<T>(v: T): T {
   return JSON.parse(JSON.stringify(v)) as T;
