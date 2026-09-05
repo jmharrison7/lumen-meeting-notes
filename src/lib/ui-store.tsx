@@ -22,6 +22,8 @@ interface UiState {
   applyItem: (item: ActionItem) => ActionItem;
   hiddenNotes: string[];
   hideNotes: (ids: string[]) => void;
+  shared: Record<string, string>;
+  markShared: (noteId: string, iso: string) => void;
 }
 
 const Ctx = createContext<UiState | null>(null);
@@ -33,6 +35,7 @@ interface Persisted {
   reviewed?: Record<string, boolean>;
   overrides?: Overrides;
   hiddenNotes?: string[];
+  shared?: Record<string, string>;
 }
 
 function read(): Persisted {
@@ -90,6 +93,12 @@ export function UiStateProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const markShared = useCallback(
+    (noteId: string, iso: string) =>
+      setState((s) => ({ ...s, shared: { ...(s.shared ?? {}), [noteId]: iso } })),
+    [],
+  );
+
   const overrides = useMemo(() => state.overrides ?? {}, [state.overrides]);
 
   const value = useMemo<UiState>(
@@ -104,8 +113,10 @@ export function UiStateProvider({ children }: { children: ReactNode }) {
       applyItem: (item) => ({ ...item, ...(overrides[item.id] ?? {}) }),
       hiddenNotes: state.hiddenNotes ?? [],
       hideNotes,
+      shared: state.shared ?? {},
+      markShared,
     }),
-    [theme, setTheme, toggleTheme, state.reviewed, setReviewed, overrides, patchItem, state.hiddenNotes, hideNotes],
+    [state.shared, markShared, theme, setTheme, toggleTheme, state.reviewed, setReviewed, overrides, patchItem, state.hiddenNotes, hideNotes],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
