@@ -13,10 +13,10 @@ export function NoteRow({
   selectMode,
 }: {
   note: Note;
-  client?: Client;
-  selected?: boolean;
-  onSelect?: (id: string, value: boolean) => void;
-  selectMode?: boolean;
+  client?: Client | undefined;
+  selected?: boolean | undefined;
+  onSelect?: ((id: string, value: boolean) => void) | undefined;
+  selectMode?: boolean | undefined;
 }) {
   const openItems = note.actionItems.filter((a) => !a.done).length;
   return (

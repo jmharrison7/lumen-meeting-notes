@@ -80,12 +80,12 @@ export function EmptyState({
   actionTo,
   onAction,
 }: {
-  icon?: ReactNode;
+  icon?: ReactNode | undefined;
   title: string;
   body: string;
-  actionLabel?: string;
-  actionTo?: "/notes" | "/" | "/clients" | "/actions" | "/search";
-  onAction?: () => void;
+  actionLabel?: string | undefined;
+  actionTo?: "/notes" | "/" | "/clients" | "/actions" | "/search" | undefined;
+  onAction?: (() => void) | undefined;
 }) {
   return (
     <div className="animate-[fade-in_180ms_ease-out] flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/60 px-6 py-16 text-center">
