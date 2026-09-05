@@ -268,3 +268,140 @@ export async function draftFollowUp(
   const bodyText = bodyMarkdown.replace(/\*\*/g, "").replace(/^- /gm, "• ");
   return { subject, bodyMarkdown, bodyText };
 }
+
+/* ------------------------------ Files & templates ------------------------------ */
+
+import { clientFiles, templates } from "./files-mock";
+import type { ClientFile, DocKind, Template, TemplateKind } from "./types";
+
+function kindFromUrl(url: string): DocKind {
+  if (url.includes("/presentation/")) return "slides";
+  if (url.includes("/spreadsheets/")) return "sheets";
+  if (url.includes("/document/")) return "docs";
+  return "file";
+}
+
+export async function listClientFiles(clientId: string): Promise<ClientFile[]> {
+  if (BASE) return http<ClientFile[]>(`/clients/${clientId}/files`);
+  await delay(280);
+  return clone(
+    clientFiles
+      .filter((f) => f.clientId === clientId)
+      .sort((a, b) => (b.modifiedAtISO ?? b.createdAtISO).localeCompare(a.modifiedAtISO ?? a.createdAtISO)),
+  );
+}
+
+export async function addDriveLink(
+  clientId: string,
+  input: { url: string; label: string },
+): Promise<ClientFile> {
+  if (BASE)
+    return http<ClientFile>(`/clients/${clientId}/files/drive`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  await delay(240);
+  const file: ClientFile = {
+    id: `f-${Date.now()}`,
+    clientId,
+    kind: kindFromUrl(input.url),
+    name: input.label || "Untitled Drive doc",
+    source: "drive",
+    url: input.url,
+    tags: [],
+    createdAtISO: new Date().toISOString(),
+    modifiedAtISO: new Date().toISOString(),
+  };
+  clientFiles.unshift(file);
+  return clone(file);
+}
+
+export async function registerUpload(
+  clientId: string,
+  input: { name: string; size: number; mime: string },
+): Promise<ClientFile> {
+  if (BASE)
+    return http<ClientFile>(`/clients/${clientId}/files/upload`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  await delay(500);
+  const file: ClientFile = {
+    id: `f-${Date.now()}-${Math.round(Math.random() * 1000)}`,
+    clientId,
+    kind: "file",
+    name: input.name,
+    source: "upload",
+    mime: input.mime,
+    sizeBytes: input.size,
+    tags: [],
+    createdAtISO: new Date().toISOString(),
+  };
+  clientFiles.unshift(file);
+  return clone(file);
+}
+
+export async function updateClientFile(
+  id: string,
+  patch: Partial<Pick<ClientFile, "label" | "tags" | "name">>,
+): Promise<ClientFile> {
+  if (BASE)
+    return http<ClientFile>(`/files/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
+  await delay(140);
+  const file = clientFiles.find((f) => f.id === id);
+  if (!file) throw new Error("File not found");
+  Object.assign(file, patch);
+  return clone(file);
+}
+
+export async function deleteClientFile(id: string): Promise<void> {
+  if (BASE) {
+    await http<void>(`/files/${id}`, { method: "DELETE" });
+    return;
+  }
+  await delay(180);
+  const i = clientFiles.findIndex((f) => f.id === id);
+  if (i >= 0) clientFiles.splice(i, 1);
+}
+
+export async function listTemplates(clientId?: string): Promise<Template[]> {
+  if (BASE)
+    return http<Template[]>(`/templates${clientId ? `?client=${encodeURIComponent(clientId)}` : ""}`);
+  await delay(260);
+  const rows = clientId ? templates.filter((t) => t.clientId === clientId) : templates;
+  return clone([...rows].sort((a, b) => b.createdAtISO.localeCompare(a.createdAtISO)));
+}
+
+export async function registerTemplate(input: {
+  name: string;
+  kind: TemplateKind;
+  source: "upload" | "drive";
+  clientId?: string | undefined;
+  url?: string | undefined;
+  sizeBytes?: number | undefined;
+}): Promise<Template> {
+  if (BASE) return http<Template>("/templates", { method: "POST", body: JSON.stringify(input) });
+  await delay(380);
+  const t: Template = {
+    id: `t-${Date.now()}`,
+    name: input.name,
+    kind: input.kind,
+    source: input.source,
+    clientId: input.clientId,
+    url: input.url,
+    sizeBytes: input.sizeBytes,
+    createdAtISO: new Date().toISOString(),
+  };
+  templates.unshift(t);
+  return clone(t);
+}
+
+export async function deleteTemplate(id: string): Promise<void> {
+  if (BASE) {
+    await http<void>(`/templates/${id}`, { method: "DELETE" });
+    return;
+  }
+  await delay(180);
+  const i = templates.findIndex((t) => t.id === id);
+  if (i >= 0) templates.splice(i, 1);
+}

@@ -5,7 +5,7 @@ import { fullDate, relativeDate, tagStyles } from "@/lib/format";
 import { EmptyState, ErrorState } from "@/components/lumen/primitives";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/clients")({
+export const Route = createFileRoute("/clients/")({
   head: () => ({
     meta: [
       { title: "Clients — Lumen" },
@@ -61,8 +61,8 @@ function ClientsPage() {
             return (
               <Link
                 key={c.id}
-                to="/notes"
-                search={{ client: c.id }}
+                to="/clients/$clientId"
+                params={{ clientId: c.id }}
                 className="group flex flex-col rounded-xl border border-hairline bg-card p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-soft"
               >
                 <div className="flex items-center gap-2.5">
@@ -83,7 +83,7 @@ function ClientsPage() {
                   <p className="mt-4 text-sm italic text-muted-foreground">No notes yet.</p>
                 )}
                 <span className="mt-4 text-xs text-muted-foreground transition-colors group-hover:text-ember">
-                  View notes →
+                  Open workspace →
                 </span>
               </Link>
             );
