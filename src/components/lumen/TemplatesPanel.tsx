@@ -211,7 +211,11 @@ export function TemplatesPanel({ clientId }: { clientId?: string | undefined }) 
         />
         <button
           onClick={() => {
-            if (!url.trim()) return toast.error("Paste a Drive URL first");
+            if (!url.trim()) {
+              toast.error("Paste a Drive URL first");
+              return;
+            }
+
             add.mutate({ name: name || "Untitled template", kind, source: "drive", clientId, url });
             setUrl("");
             setName("");
