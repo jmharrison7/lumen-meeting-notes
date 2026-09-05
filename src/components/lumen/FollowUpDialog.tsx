@@ -73,7 +73,7 @@ export function FollowUpDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-3xl sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="text-title text-xl">Draft follow-up</DialogTitle>
           <DialogDescription>{note.title}</DialogDescription>
