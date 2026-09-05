@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { Check, Link2, Mail, Send, Type } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link2, Mail, Send, Type } from "lucide-react";
 import { toast } from "sonner";
-import { buildRecap, shareRecap } from "@/lib/api";
+import { buildRecap, createContact, listContacts, shareRecap } from "@/lib/api";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { useUi } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
+import { RecipientField, type Recipient } from "./RecipientField";
 import type { Note, ShareChannel } from "@/lib/types";
 
 const TEAM_ALIAS = "studio@lumen.work";
@@ -18,8 +20,6 @@ const TEAM_ALIAS = "studio@lumen.work";
 function emailFor(name: string) {
   return `${name.toLowerCase().replace(/[^a-z]+/g, ".")}@example.com`;
 }
-
-const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
 export function ShareRecapDialog({
   note,
@@ -33,6 +33,8 @@ export function ShareRecapDialog({
   onOpenChange: (v: boolean) => void;
 }) {
   const { markShared } = useUi();
+  const qc = useQueryClient();
+
   const contacts = useQuery({ queryKey: ["contacts"], queryFn: () => listContacts() });
   const suggested = useMemo<Recipient[]>(
     () =>
