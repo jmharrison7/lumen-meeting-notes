@@ -23,7 +23,7 @@ export interface ActionItem {
   syncedToTeamwork?: boolean | undefined;
 }
 
-export type Platform = "meet" | "zoom";
+export type Platform = "google-meet" | "zoom" | "in-person";
 
 export interface Note {
   id: string;
