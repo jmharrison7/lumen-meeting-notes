@@ -7,6 +7,7 @@ import {
   Circle,
   Command as CommandIcon,
   FileText,
+  LayoutTemplate,
   Moon,
   Search,
   Sun,
@@ -32,6 +33,7 @@ const nav = [
   { to: "/notes", label: "All Notes", icon: FileText, exact: false },
   { to: "/actions", label: "Action Items", icon: CheckSquare, exact: false },
   { to: "/clients", label: "Clients", icon: Users, exact: false },
+  { to: "/templates", label: "Templates", icon: LayoutTemplate, exact: false },
   { to: "/search", label: "Search", icon: Search, exact: false },
 ] as const;
 
