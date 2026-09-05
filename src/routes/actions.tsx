@@ -2,9 +2,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { listActionItems, listClients, updateActionItem } from "@/lib/api";
-import { dueBucket, formatDate } from "@/lib/format";
+import { dueBucket } from "@/lib/format";
 import {
   ClientChip,
+  DueBadge,
   EmptyState,
   ErrorState,
   ListSkeleton,
