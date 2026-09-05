@@ -260,3 +260,36 @@ export interface Contact {
   source: "manual" | "attendee" | "collaborator" | "sent" | "google";
   createdAtISO: string;
 }
+
+/* ----------------------------------- Money ----------------------------------- */
+
+export type ExpenseCategory =
+  | "Advertising"
+  | "Software & Subscriptions"
+  | "Contractors"
+  | "Office Supplies"
+  | "Travel"
+  | "Meals (50%)"
+  | "Equipment"
+  | "Professional Services"
+  | "Insurance"
+  | "Utilities"
+  | "Home Office"
+  | "Other";
+
+export interface MoneyExpense {
+  id: string;
+  /** Derived from dateISO — a row belongs to exactly one tax year. */
+  taxYear: number;
+  dateISO: string;
+  vendor: string;
+  category: ExpenseCategory;
+  amount: number;
+  payment?: string | undefined;
+  notes?: string | undefined;
+  clientId?: string | undefined;
+  receiptName?: string | undefined;
+  receiptPreview?: string | undefined;
+  source: "manual" | "email-auto";
+  createdAtISO: string;
+}

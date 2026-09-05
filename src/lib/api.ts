@@ -1424,3 +1424,101 @@ export async function signOut(): Promise<void> {
   await delay(200);
   mockSignedOut = true;
 }
+
+/* ----------------------------------- Money ----------------------------------- */
+
+import { seedExpenses } from "./money-mock";
+import type { MoneyExpense } from "./types";
+
+const MONEY_KEY = "lumen.money.expenses.v1";
+let expenses: MoneyExpense[] | null = null;
+
+function loadExpenses(): MoneyExpense[] {
+  if (expenses) return expenses;
+  expenses = clone(seedExpenses);
+  if (typeof window !== "undefined") {
+    try {
+      const raw = window.localStorage.getItem(MONEY_KEY);
+      if (raw) expenses = JSON.parse(raw) as MoneyExpense[];
+    } catch {
+      /* ignore */
+    }
+  }
+  return expenses;
+}
+
+function persistExpenses() {
+  if (typeof window === "undefined" || !expenses) return;
+  window.localStorage.setItem(MONEY_KEY, JSON.stringify(expenses));
+}
+
+const byDateDesc = (a: MoneyExpense, b: MoneyExpense) => b.dateISO.localeCompare(a.dateISO);
+
+export async function listMoneyExpenses(taxYear?: number): Promise<MoneyExpense[]> {
+  if (BASE)
+    return http<MoneyExpense[]>(`/money/expenses${taxYear ? `?year=${taxYear}` : ""}`);
+  await delay(240);
+  const all = loadExpenses().filter((x) => (taxYear ? x.taxYear === taxYear : true));
+  return clone([...all].sort(byDateDesc));
+}
+
+export async function listMoneyYears(): Promise<number[]> {
+  if (BASE) return http<number[]>("/money/years");
+  await delay(120);
+  const years = new Set(loadExpenses().map((x) => x.taxYear));
+  years.add(new Date().getFullYear());
+  return [...years].sort((a, b) => b - a);
+}
+
+export type MoneyExpenseInput = Omit<MoneyExpense, "id" | "taxYear" | "createdAtISO" | "source"> & {
+  source?: MoneyExpense["source"] | undefined;
+};
+
+export async function createMoneyExpense(input: MoneyExpenseInput): Promise<MoneyExpense> {
+  if (BASE)
+    return http<MoneyExpense>("/money/expenses", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  await delay(260);
+  const row: MoneyExpense = {
+    ...input,
+    id: `mx-${Date.now()}`,
+    taxYear: new Date(input.dateISO).getUTCFullYear(),
+    source: input.source ?? "manual",
+    createdAtISO: new Date().toISOString(),
+  };
+  loadExpenses().unshift(row);
+  persistExpenses();
+  return clone(row);
+}
+
+export async function updateMoneyExpense(
+  id: string,
+  patch: Partial<MoneyExpenseInput>,
+): Promise<MoneyExpense> {
+  if (BASE)
+    return http<MoneyExpense>(`/money/expenses/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+  await delay(180);
+  const row = loadExpenses().find((x) => x.id === id);
+  if (!row) throw new Error("Expense not found");
+  Object.assign(row, patch);
+  if (patch.dateISO) row.taxYear = new Date(patch.dateISO).getUTCFullYear();
+  persistExpenses();
+  return clone(row);
+}
+
+export async function deleteMoneyExpense(id: string): Promise<void> {
+  if (BASE) {
+    await http<void>(`/money/expenses/${id}`, { method: "DELETE" });
+    return;
+  }
+  await delay(160);
+  const list = loadExpenses();
+  const i = list.findIndex((x) => x.id === id);
+  if (i >= 0) list.splice(i, 1);
+  persistExpenses();
+}
