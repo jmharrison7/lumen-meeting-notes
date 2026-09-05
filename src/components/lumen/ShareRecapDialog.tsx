@@ -92,8 +92,11 @@ export function ShareRecapDialog({
       });
 
       markShared(note.id, new Date().toISOString());
-      if (result.channel === "email")
+      if (result.channel === "email") {
         toast.success(`Recap sent to ${(result.sentTo ?? []).join(", ")}`);
+        offerToSave(value);
+      }
+
       if (result.channel === "link" && result.link) {
         await navigator.clipboard.writeText(`${window.location.origin}${result.link}`);
         toast.success("Link copied");
