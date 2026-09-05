@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActionsRouteImport } from './routes/actions'
 import { Route as AlertsRouteImport } from './routes/alerts'
 import { Route as CollaboratorsRouteImport } from './routes/collaborators'
+import { Route as ContactsRouteImport } from './routes/contacts'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as ClientsIndexRouteImport } from './routes/clients.index'
@@ -42,6 +43,11 @@ const AlertsRoute = AlertsRouteImport.update({
 const CollaboratorsRoute = CollaboratorsRouteImport.update({
   id: '/collaborators',
   path: '/collaborators',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactsRoute = ContactsRouteImport.update({
+  id: '/contacts',
+  path: '/contacts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SearchRoute = SearchRouteImport.update({
@@ -100,6 +106,7 @@ export interface FileRoutesByFullPath {
   '/actions': typeof ActionsRoute
   '/alerts': typeof AlertsRoute
   '/collaborators': typeof CollaboratorsRoute
+  '/contacts': typeof ContactsRoute
   '/search': typeof SearchRoute
   '/templates': typeof TemplatesRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
@@ -116,6 +123,7 @@ export interface FileRoutesByTo {
   '/actions': typeof ActionsRoute
   '/alerts': typeof AlertsRoute
   '/collaborators': typeof CollaboratorsRoute
+  '/contacts': typeof ContactsRoute
   '/search': typeof SearchRoute
   '/templates': typeof TemplatesRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
@@ -133,6 +141,7 @@ export interface FileRoutesById {
   '/actions': typeof ActionsRoute
   '/alerts': typeof AlertsRoute
   '/collaborators': typeof CollaboratorsRoute
+  '/contacts': typeof ContactsRoute
   '/search': typeof SearchRoute
   '/templates': typeof TemplatesRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
@@ -151,6 +160,7 @@ export interface FileRouteTypes {
     | '/actions'
     | '/alerts'
     | '/collaborators'
+    | '/contacts'
     | '/search'
     | '/templates'
     | '/clients/$clientId'
@@ -167,6 +177,7 @@ export interface FileRouteTypes {
     | '/actions'
     | '/alerts'
     | '/collaborators'
+    | '/contacts'
     | '/search'
     | '/templates'
     | '/clients/$clientId'
@@ -183,6 +194,7 @@ export interface FileRouteTypes {
     | '/actions'
     | '/alerts'
     | '/collaborators'
+    | '/contacts'
     | '/search'
     | '/templates'
     | '/clients/$clientId'
@@ -200,6 +212,7 @@ export interface RootRouteChildren {
   ActionsRoute: typeof ActionsRoute
   AlertsRoute: typeof AlertsRoute
   CollaboratorsRoute: typeof CollaboratorsRoute
+  ContactsRoute: typeof ContactsRoute
   SearchRoute: typeof SearchRoute
   TemplatesRoute: typeof TemplatesRoute
   ClientsClientIdRoute: typeof ClientsClientIdRoute
@@ -240,6 +253,13 @@ declare module '@tanstack/react-router' {
       path: '/collaborators'
       fullPath: '/collaborators'
       preLoaderRoute: typeof CollaboratorsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contacts': {
+      id: '/contacts'
+      path: '/contacts'
+      fullPath: '/contacts'
+      preLoaderRoute: typeof ContactsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/search': {
@@ -320,6 +340,7 @@ const rootRouteChildren: RootRouteChildren = {
   ActionsRoute: ActionsRoute,
   AlertsRoute: AlertsRoute,
   CollaboratorsRoute: CollaboratorsRoute,
+  ContactsRoute: ContactsRoute,
   SearchRoute: SearchRoute,
   TemplatesRoute: TemplatesRoute,
   ClientsClientIdRoute: ClientsClientIdRoute,

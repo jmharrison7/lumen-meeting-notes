@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { Check, Link2, Mail, Send, Type } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link2, Mail, Send, Type } from "lucide-react";
 import { toast } from "sonner";
-import { buildRecap, shareRecap } from "@/lib/api";
+import { buildRecap, createContact, listContacts, shareRecap } from "@/lib/api";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { useUi } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
+import { RecipientField, type Recipient } from "./RecipientField";
 import type { Note, ShareChannel } from "@/lib/types";
 
 const TEAM_ALIAS = "studio@lumen.work";
@@ -18,8 +20,6 @@ const TEAM_ALIAS = "studio@lumen.work";
 function emailFor(name: string) {
   return `${name.toLowerCase().replace(/[^a-z]+/g, ".")}@example.com`;
 }
-
-const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
 export function ShareRecapDialog({
   note,
@@ -33,44 +33,70 @@ export function ShareRecapDialog({
   onOpenChange: (v: boolean) => void;
 }) {
   const { markShared } = useUi();
-  const attendees = useMemo(
-    () => note.attendees.map((a) => ({ name: a, email: emailFor(a) })),
-    [note.attendees],
+  const qc = useQueryClient();
+
+  const contacts = useQuery({ queryKey: ["contacts"], queryFn: () => listContacts() });
+  const suggested = useMemo<Recipient[]>(
+    () =>
+      note.attendees
+        .filter((a) => a !== "Mary Alcott")
+        .map((a) => {
+          const match = (contacts.data ?? []).find(
+            (c) => c.name.toLowerCase() === a.toLowerCase(),
+          );
+          return match
+            ? { name: match.name, email: match.email, known: true }
+            : { name: a, email: emailFor(a), known: false };
+        }),
+    [note.attendees, contacts.data],
   );
-  const [selected, setSelected] = useState<string[]>(() =>
-    attendees.filter((a) => a.name !== "Mary Alcott").map((a) => a.email),
-  );
+  const [recipients, setRecipients] = useState<Recipient[] | null>(null);
+  const value = recipients ?? suggested;
   const [includeTeam, setIncludeTeam] = useState(false);
-  const [manual, setManual] = useState("");
-  const [extra, setExtra] = useState<string[]>([]);
   const [channel, setChannel] = useState<ShareChannel>("email");
   const [sending, setSending] = useState(false);
 
   const recap = useMemo(() => buildRecap(note, clientName), [note, clientName]);
-  const recipients = [...selected, ...extra];
-  const canSend = channel !== "email" || recipients.length > 0 || includeTeam;
+  const canSend = channel !== "email" || value.length > 0 || includeTeam;
 
-  function toggle(email: string) {
-    setSelected((s) => (s.includes(email) ? s.filter((e) => e !== email) : [...s, email]));
-  }
-
-  function addManual() {
-    const v = manual.trim();
-    if (!isEmail(v)) {
-      toast.error("That doesn't look like an email address");
-      return;
+  function offerToSave(list: Recipient[]) {
+    for (const r of list.filter((x) => !x.known)) {
+      toast(`Add ${r.name} to contacts?`, {
+        action: {
+          label: "Add",
+          onClick: () => {
+            void createContact({
+              name: r.name,
+              email: r.email,
+              clientId: note.clientId,
+              role: "client",
+              source: "sent",
+            }).then(() => {
+              void qc.invalidateQueries({ queryKey: ["contacts"] });
+              toast.success(`${r.name} saved to contacts`);
+            });
+          },
+        },
+        cancel: { label: "Not now", onClick: () => undefined },
+      });
     }
-    setExtra((e) => [...new Set([...e, v])]);
-    setManual("");
   }
 
   async function submit() {
     setSending(true);
     try {
-      const result = await shareRecap(note.id, { recipients, includeTeam, channel });
+      const result = await shareRecap(note.id, {
+        recipients: value.map((r) => r.email),
+        includeTeam,
+        channel,
+      });
+
       markShared(note.id, new Date().toISOString());
-      if (result.channel === "email")
+      if (result.channel === "email") {
         toast.success(`Recap sent to ${(result.sentTo ?? []).join(", ")}`);
+        offerToSave(value);
+      }
+
       if (result.channel === "link" && result.link) {
         await navigator.clipboard.writeText(`${window.location.origin}${result.link}`);
         toast.success("Link copied");
@@ -103,73 +129,27 @@ export function ShareRecapDialog({
 
         <div className="max-h-[60vh] space-y-5 overflow-y-auto pr-1">
           <section className="space-y-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Recipients
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {attendees.map((a) => (
-                <button
-                  key={a.email}
-                  onClick={() => toggle(a.email)}
-                  aria-pressed={selected.includes(a.email)}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors",
-                    selected.includes(a.email)
-                      ? "border-ember/40 bg-ember-soft text-ember"
-                      : "border-hairline hover:bg-accent",
-                  )}
-                >
-                  {selected.includes(a.email) ? <Check className="size-3" /> : null}
-                  {a.name}
-                </button>
-              ))}
-              {extra.map((e) => (
-                <span
-                  key={e}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-ember/40 bg-ember-soft px-3 py-1.5 text-xs text-ember"
-                >
-                  {e}
-                  <button onClick={() => setExtra((x) => x.filter((v) => v !== e))} aria-label={`Remove ${e}`}>
-                    ×
-                  </button>
-                </span>
-              ))}
-              <button
-                onClick={() => setIncludeTeam((v) => !v)}
-                aria-pressed={includeTeam}
-                className={cn(
-                  "rounded-full border px-3 py-1.5 text-xs transition-colors",
-                  includeTeam ? "border-ember/40 bg-ember-soft text-ember" : "border-hairline hover:bg-accent",
-                )}
-              >
-                Team · {TEAM_ALIAS}
-              </button>
-            </div>
-            <div className="flex gap-2">
-              <input
-                value={manual}
-                onChange={(e) => setManual(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addManual();
-                  }
-                }}
-                placeholder="Add someone else — name@company.com"
-                aria-label="Add another recipient"
-                className="min-h-[44px] flex-1 rounded-lg border border-hairline bg-card px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-              />
-              <button
-                onClick={addManual}
-                className="rounded-lg border border-border px-3 text-sm hover:bg-accent"
-              >
-                Add
-              </button>
-            </div>
+            <RecipientField
+              value={value}
+              onChange={setRecipients}
+              clientId={note.clientId}
+              label="Recipients"
+            />
+            <button
+              onClick={() => setIncludeTeam((v) => !v)}
+              aria-pressed={includeTeam}
+              className={cn(
+                "rounded-full border px-3 py-1.5 text-xs transition-colors",
+                includeTeam ? "border-ember/40 bg-ember-soft text-ember" : "border-hairline hover:bg-accent",
+              )}
+            >
+              Team · {TEAM_ALIAS}
+            </button>
             {channel === "email" && !canSend ? (
               <p className="text-xs text-destructive">Pick at least one recipient to send this recap.</p>
             ) : null}
           </section>
+
 
           <section className="space-y-2">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">

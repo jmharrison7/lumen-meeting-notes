@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import {
+  createContact,
   inviteCollaborator,
   listCollaborators,
   removeCollaboratorFromClient,
@@ -11,6 +12,7 @@ import {
 import { relativeDate, fullDate } from "@/lib/format";
 import { EmptyState, ListSkeleton } from "@/components/lumen/primitives";
 import { cn } from "@/lib/utils";
+import { RecipientField, type Recipient } from "./RecipientField";
 import type { CollaboratorRole } from "@/lib/types";
 
 const emailOk = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
@@ -19,8 +21,10 @@ export function AccessPanel({ clientId, clientName }: { clientId: string; client
   const qc = useQueryClient();
   const people = useQuery({ queryKey: ["collaborators"], queryFn: listCollaborators });
   const [open, setOpen] = useState(false);
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
+  const [person, setPerson] = useState<Recipient[]>([]);
+  const invitee = person[0];
+  const email = invitee?.email ?? "";
+  const name = invitee?.name ?? "";
   const [role, setRole] = useState<CollaboratorRole>("editor");
   const [error, setError] = useState("");
 
@@ -31,11 +35,18 @@ export function AccessPanel({ clientId, clientName }: { clientId: string; client
       inviteCollaborator({ email, ...(name ? { name } : {}), role, clientIds: [clientId] }),
     onSuccess: async (p) => {
       await refresh();
-      setEmail("");
-      setName("");
+      await createContact({
+        name: p.name ?? p.email,
+        email: p.email,
+        clientId,
+        role: "freelancer",
+        source: "collaborator",
+      });
+      void qc.invalidateQueries({ queryKey: ["contacts"] });
+      setPerson([]);
       setRole("editor");
       setOpen(false);
-      toast.success(`Invite sent to ${p.email}`);
+      toast.success(`Invite sent to ${p.email} — added to contacts from invite`);
     },
   });
 
@@ -74,7 +85,7 @@ export function AccessPanel({ clientId, clientName }: { clientId: string; client
 
       {open ? (
         <form
-          className="grid gap-3 rounded-xl border border-hairline bg-card p-4 sm:grid-cols-[1.4fr_1fr_auto_auto]"
+          className="grid gap-3 rounded-xl border border-hairline bg-card p-4 sm:grid-cols-[2fr_auto_auto]"
           onSubmit={(e) => {
             e.preventDefault();
             if (!emailOk(email)) {
@@ -85,26 +96,14 @@ export function AccessPanel({ clientId, clientName }: { clientId: string; client
             invite.mutate();
           }}
         >
-          <label className="text-xs text-muted-foreground">
-            Email
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="jamie@studio.com"
-              aria-label="Collaborator email"
-              className="mt-1 h-11 w-full rounded-lg border border-hairline bg-background px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-            />
-          </label>
-          <label className="text-xs text-muted-foreground">
-            Name (optional)
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Jamie"
-              aria-label="Collaborator name"
-              className="mt-1 h-11 w-full rounded-lg border border-hairline bg-background px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-            />
-          </label>
+          <RecipientField
+            value={person}
+            onChange={setPerson}
+            clientId={clientId}
+            label="Who are you inviting"
+            placeholder="Type a name — we'll find them."
+            max={1}
+          />
           <label className="text-xs text-muted-foreground">
             Role
             <select
@@ -124,7 +123,7 @@ export function AccessPanel({ clientId, clientName }: { clientId: string; client
           >
             {invite.isPending ? "Inviting…" : "Send invite"}
           </button>
-          {error ? <p className="text-xs text-destructive sm:col-span-4">{error}</p> : null}
+          {error ? <p className="text-xs text-destructive sm:col-span-3">{error}</p> : null}
         </form>
       ) : null}
 

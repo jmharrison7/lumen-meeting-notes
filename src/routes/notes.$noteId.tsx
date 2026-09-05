@@ -49,6 +49,7 @@ import type { ActionItem } from "@/lib/types";
 import { FollowUpDialog } from "@/components/lumen/FollowUpDialog";
 import { MentionBanner } from "@/components/lumen/Mentions";
 import { PlaybackBar, TimeChip } from "@/components/lumen/PlaybackBar";
+import { AddAttendees } from "@/components/lumen/AddAttendees";
 import { ShareRecapDialog } from "@/components/lumen/ShareRecapDialog";
 import { AskPanel } from "@/components/lumen/AskPanel";
 import { ShareLinkDialog } from "@/components/lumen/ShareLinkDialog";
@@ -205,7 +206,11 @@ function NoteDetail() {
             </span>
           ) : null}
         </div>
-        <p className="text-xs text-muted-foreground">{n.attendees.join(" · ")}</p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <p className="text-xs text-muted-foreground">{n.attendees.join(" · ")}</p>
+          {canEdit ? <AddAttendees attendees={n.attendees} clientId={n.clientId} /> : null}
+        </div>
+
 
         <div className="hidden flex-wrap gap-2 pt-1 md:flex">
           {canEdit ? (

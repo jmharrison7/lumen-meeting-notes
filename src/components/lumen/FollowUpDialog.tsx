@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Copy, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { draftFollowUp } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { createContact, draftFollowUp } from "@/lib/api";
+import { RecipientField, type Recipient } from "./RecipientField";
 import type { FollowUpDraft, FollowUpOptions, FollowUpTone, Note } from "@/lib/types";
 import {
   Dialog,
@@ -37,6 +39,31 @@ export function FollowUpDialog({
   const [error, setError] = useState(false);
   const [nonce, setNonce] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const qc = useQueryClient();
+
+  function offerToSave() {
+    for (const r of recipients.filter((x) => !x.known)) {
+      toast(`Add ${r.name} to contacts?`, {
+        action: {
+          label: "Add",
+          onClick: () => {
+            void createContact({
+              name: r.name,
+              email: r.email,
+              clientId: note.clientId,
+              role: "client",
+              source: "sent",
+            }).then(() => {
+              void qc.invalidateQueries({ queryKey: ["contacts"] });
+              toast.success(`${r.name} saved to contacts`);
+            });
+          },
+        },
+        cancel: { label: "Not now", onClick: () => undefined },
+      });
+    }
+  }
 
   const hasQuestions = note.openQuestions.length > 0;
   const hasActions = note.actionItems.some((a) => !a.done);
@@ -161,7 +188,28 @@ export function FollowUpDialog({
               onChange={(v) => setOptions((o) => ({ ...o, includeActionItems: v }))}
             />
 
+            <RecipientField
+              value={recipients}
+              onChange={setRecipients}
+              clientId={note.clientId}
+              label="Send to"
+            />
+
             <div className="space-y-2 pt-1">
+              <button
+                disabled={!draft}
+                onClick={() => {
+                  if (!recipients.length) {
+                    toast.error("Add at least one recipient first");
+                    return;
+                  }
+                  toast.success(`Follow-up sent to ${recipients.map((r) => r.name).join(", ")}`);
+                  offerToSave();
+                }}
+                className="inline-flex min-h-[40px] w-full items-center justify-center gap-1.5 rounded-lg border border-ember/40 bg-ember-soft px-3 text-sm font-medium text-ember transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                Send follow-up
+              </button>
               <button
                 disabled={!draft}
                 onClick={() => void copy(`${draft!.subject}\n\n${draft!.bodyText}`, "Email")}
