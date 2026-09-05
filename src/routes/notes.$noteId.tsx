@@ -98,8 +98,8 @@ function NoteDetail() {
   }
 
   async function remove() {
-    hideNotes([n.id]);
-    await deleteNotes([n.id]);
+    hideNotes([noteId]);
+    await deleteNotes([noteId]);
     await qc.invalidateQueries({ queryKey: ["notes"] });
     toast.success("Note deleted");
     void navigate({ to: "/notes" });
