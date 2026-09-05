@@ -25,6 +25,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useUi } from "@/lib/ui-store";
 import { listNotes } from "@/lib/api";
+import { MobileTabBar } from "./MobileTabBar";
+import { InstallHint } from "./InstallHint";
 
 const nav = [
   { to: "/", label: "Today", icon: CalendarDays, exact: true },
@@ -88,7 +90,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-sidebar-border bg-sidebar transition-transform duration-200 md:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-sidebar-border bg-sidebar transition-transform duration-200 md:flex md:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
@@ -134,7 +136,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           </button>
         </div>
 
-        <div className="mt-auto border-t border-sidebar-border p-3">
+        <div className="mt-auto space-y-3 border-t border-sidebar-border p-3">
+          <InstallHint />
           <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
             <span className="grid size-7 place-items-center rounded-full bg-ember-soft text-[11px] font-semibold text-ember">
               M
@@ -155,23 +158,34 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col md:pl-64">
-        <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-hairline bg-background/85 px-4 py-3 backdrop-blur md:hidden">
-          <button onClick={() => setOpen(true)} aria-label="Open menu" className="p-1">
-            <Menu className="size-5" />
+        <header className="pt-safe sticky top-0 z-20 flex items-center gap-2 border-b border-hairline bg-background/85 px-4 py-2.5 backdrop-blur md:hidden">
+          <Link to="/" className="flex items-baseline gap-1.5">
+            <span className="text-title text-[19px] font-semibold">Lumen</span>
+            <span className="size-1.5 rounded-full bg-ember" />
+          </Link>
+          <button
+            onClick={() => setPaletteOpen(true)}
+            aria-label="Record a meeting"
+            className="ml-auto inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-dashed border-border px-3 text-xs text-muted-foreground"
+          >
+            <Circle className="size-3 fill-ember text-ember" />
+            Record
           </button>
-          <span className="text-title text-lg font-semibold">Lumen</span>
           <button
             onClick={toggleTheme}
             aria-label="Toggle theme"
-            className="ml-auto p-1 text-muted-foreground"
+            className="grid size-11 place-items-center text-muted-foreground"
           >
             {theme === "light" ? <Moon className="size-4" /> : <Sun className="size-4" />}
           </button>
         </header>
-        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 md:px-10 md:py-12">
+        <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-28 pt-6 md:px-10 md:py-12 md:pb-12">
           {children}
         </main>
       </div>
+
+      <MobileTabBar />
+
 
       <CommandDialog open={paletteOpen} onOpenChange={setPaletteOpen}>
         <CommandInput placeholder="Jump to a note or run a command…" />
