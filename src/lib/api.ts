@@ -551,3 +551,224 @@ export async function getMentionHits(noteId: string): Promise<MentionHit[]> {
   }
   return hits;
 }
+
+import { clients as allClients } from "./mock-data";
+import { clock, formatDate, parseTranscriptLines } from "./format";
+import type { AskReply, AskSource, ShareChannel, ShareResult } from "./types";
+
+/* ------------------------------------------------------------------ *
+ * Timestamped playback
+ * ------------------------------------------------------------------ */
+
+export async function getPlaybackUrl(
+  noteId: string,
+  atSeconds: number,
+): Promise<{ url: string; durationSeconds: number }> {
+  if (BASE)
+    return http<{ url: string; durationSeconds: number }>(
+      `/notes/${noteId}/audio?t=${Math.round(atSeconds)}`,
+    );
+  await delay(180);
+  const note = notes.find((n) => n.id === noteId);
+  return { url: "", durationSeconds: note?.audio?.durationSeconds ?? 2700 };
+}
+
+/* ------------------------------------------------------------------ *
+ * Ask Lumen — scripted, grounded answers over real mock content
+ * ------------------------------------------------------------------ */
+
+function noteSource(note: Note, snippet: string): AskSource {
+  return {
+    kind: "note",
+    label: `Notes · ${formatDate(note.date)}`,
+    snippet,
+    link: note.id,
+  };
+}
+
+function transcriptSource(note: Note, atSeconds: number, snippet: string): AskSource {
+  return {
+    kind: "transcript",
+    label: `Transcript @ ${clock(atSeconds)}`,
+    snippet,
+    link: `note:${note.id}@t=${Math.round(atSeconds)}`,
+  };
+}
+
+export async function askLumen(
+  scope: { clientId?: string | undefined; noteId?: string | undefined },
+  question: string,
+): Promise<AskReply> {
+  if (BASE)
+    return http<AskReply>("/ask", {
+      method: "POST",
+      body: JSON.stringify({ ...scope, question }),
+    });
+
+  await delay(800 + Math.random() * 700);
+
+  const scoped = scope.noteId
+    ? notes.filter((n) => n.id === scope.noteId)
+    : scope.clientId
+      ? notes.filter((n) => n.clientId === scope.clientId)
+      : notes;
+  const sorted = [...scoped].sort((a, b) => b.date.localeCompare(a.date));
+  const files = scope.clientId ? clientFiles.filter((f) => f.clientId === scope.clientId) : [];
+  const clientName =
+    allClients.find((c) => c.id === (scope.clientId ?? sorted[0]?.clientId))?.name ?? "this account";
+
+  if (sorted.length === 0)
+    return {
+      answer: `I don't have any captured meetings for ${clientName} yet, so there's nothing for me to read. Once Lumen records a call — or you add files to the client's Files tab — I can answer properly.`,
+      sources: [],
+    };
+
+  const q = question.toLowerCase();
+  const sources: AskSource[] = [];
+  let answer = "";
+
+  const money = /pric|cost|budget|quote|rate|fee|spend|estimate/.test(q);
+  const open = /open|outstanding|owe|owed|pending|todo|to do|next|action/.test(q);
+  const brand = /brand|guideline|deck|file|document|template/.test(q);
+  const decided = /decide|decision|agree|agreed|sign(ed)? off/.test(q);
+  const summarise = /summar|recap|catch me up|overview|what happened/.test(q);
+
+  if (money) {
+    const hit = sorted.find((n) =>
+      [n.summary, ...n.decisions, ...n.openQuestions].some((t) => /cost|price|budget|cent|spend|rate/i.test(t)),
+    );
+    if (hit) {
+      const line =
+        [...hit.decisions, ...hit.openQuestions, hit.summary].find((t) =>
+          /cost|price|budget|cent|spend|rate/i.test(t),
+        ) ?? hit.summary;
+      answer = `On money, the clearest thing in the notes is from ${hit.title} (${formatDate(hit.date)}): "${line}" Nothing in the record suggests a final number was signed off beyond that — I'd treat it as agreed in principle, not contracted.`;
+      sources.push(noteSource(hit, line));
+      const tline = parseTranscriptLines(hit.transcript).find((l) => /cost|cent|price|budget/i.test(l.text));
+      if (tline) sources.push(transcriptSource(hit, tline.atSeconds, `${tline.speaker}: ${tline.text}`));
+    } else {
+      answer = `I don't see a pricing conversation for ${clientName} in the notes I have. If it happened over email, it never reached Lumen.`;
+    }
+  } else if (open) {
+    const items = sorted.flatMap((n) => n.actionItems.filter((a) => !a.done).map((a) => ({ n, a })));
+    if (items.length) {
+      const top = items.slice(0, 4);
+      answer = `${top.length} thing${top.length === 1 ? "" : "s"} still open for ${clientName}:\n\n${top
+        .map((t) => `• ${t.a.text} — ${t.a.owner}${t.a.dueDate ? `, due ${formatDate(t.a.dueDate)}` : ""}`)
+        .join("\n")}`;
+      for (const t of top.slice(0, 2)) sources.push(noteSource(t.n, t.a.text));
+    } else {
+      answer = `Nothing is open for ${clientName} — every action item from the captured meetings is ticked off.`;
+    }
+  } else if (brand && files.length) {
+    const f = files[0]!;
+    answer = `${clientName} has ${files.length} document${files.length === 1 ? "" : "s"} on file. The one I'd start with is "${f.name}"${f.label ? ` — ${f.label}` : ""}. I can't read inside linked Drive docs yet, so treat this as a pointer rather than a summary.`;
+    sources.push({
+      kind: "file",
+      label: f.name,
+      snippet: f.label ?? `${f.source === "drive" ? "Linked Drive document" : "Uploaded file"} · ${f.tags.join(", ") || "no tags"}`,
+      link: f.id,
+    });
+  } else if (decided) {
+    const withDecisions = sorted.filter((n) => n.decisions.length).slice(0, 2);
+    if (withDecisions.length) {
+      answer = `Decisions on record for ${clientName}:\n\n${withDecisions
+        .map((n) => `${formatDate(n.date)} — ${n.decisions.map((d) => `• ${d}`).join("\n")}`)
+        .join("\n\n")}`;
+      for (const n of withDecisions) sources.push(noteSource(n, n.decisions[0] as string));
+    } else {
+      answer = `No firm decisions are recorded for ${clientName} yet.`;
+    }
+  } else if (summarise) {
+    const latest = sorted[0]!;
+    answer = `Most recent was ${latest.title} on ${formatDate(latest.date)}. ${latest.summary}`;
+    sources.push(noteSource(latest, latest.summary));
+  } else {
+    const terms = q.split(/\s+/).filter((t) => t.length > 3);
+    let found: { note: Note; line: string } | null = null;
+    for (const n of sorted) {
+      const line = [n.summary, ...n.decisions, ...n.openQuestions, ...n.actionItems.map((a) => a.text)].find(
+        (t) => terms.some((term) => t.toLowerCase().includes(term)),
+      );
+      if (line) {
+        found = { note: n, line };
+        break;
+      }
+    }
+    if (found) {
+      answer = `Closest thing I can find is in ${found.note.title} (${formatDate(found.note.date)}): "${found.line}" That's what the notes actually say — anything beyond it would be me guessing.`;
+      sources.push(noteSource(found.note, found.line));
+    } else {
+      answer = `I don't see that in the notes for ${clientName}. The last ${Math.min(sorted.length, 3)} meetings covered ${sorted
+        .slice(0, 3)
+        .map((n) => n.title.split("—").pop()?.trim())
+        .join(", ")} — happy to dig into any of those.`;
+      const latest = sorted[0]!;
+      sources.push(noteSource(latest, latest.summary));
+    }
+  }
+
+  return { answer, sources: sources.slice(0, 3) };
+}
+
+export function suggestedQuestions(scope: { clientId?: string | undefined; noteId?: string | undefined }): string[] {
+  if (scope.noteId)
+    return [
+      "What did we decide in this meeting?",
+      "What's still open from this call?",
+      "Was pricing discussed?",
+      "Summarize this meeting in two lines",
+    ];
+  return [
+    "What did we agree on pricing?",
+    "What's open from our last meeting?",
+    "What decisions have we made?",
+    "What files do we have for them?",
+  ];
+}
+
+/* ------------------------------------------------------------------ *
+ * Share recap
+ * ------------------------------------------------------------------ */
+
+export function buildRecap(note: Note, clientName: string): { subject: string; body: string } {
+  const openItems = note.actionItems.filter((a) => !a.done);
+  const parts: string[] = [];
+  parts.push(`Hi all,`);
+  parts.push(`Quick record of ${note.title.split("—").pop()?.trim() ?? note.title} on ${formatDate(note.date)}.`);
+  parts.push(note.summary);
+  if (note.decisions.length)
+    parts.push(`What we decided:\n${note.decisions.map((d) => `• ${d}`).join("\n")}`);
+  if (openItems.length)
+    parts.push(
+      `Who owns what:\n${openItems
+        .map((a) => `• ${a.text} — ${a.owner}${a.dueDate ? ` (${formatDate(a.dueDate)})` : ""}`)
+        .join("\n")}`,
+    );
+  parts.push(`Questions? Happy to go deeper.\n\nMary`);
+  return {
+    subject: `Recap: ${note.title.replace(/\s*—\s*/, " ").trim()} — ${formatDate(note.date)}`,
+    body: parts.join("\n\n"),
+  };
+}
+
+export async function shareRecap(
+  noteId: string,
+  opts: { recipients: string[]; includeTeam: boolean; channel: ShareChannel },
+): Promise<ShareResult> {
+  if (BASE)
+    return http<ShareResult>(`/notes/${noteId}/recap`, {
+      method: "POST",
+      body: JSON.stringify(opts),
+    });
+  await delay(900);
+  const note = notes.find((n) => n.id === noteId);
+  if (!note) throw new Error("Note not found");
+  const clientName = allClients.find((c) => c.id === note.clientId)?.name ?? "Client";
+  const recap = buildRecap(note, clientName);
+  const to = [...opts.recipients, ...(opts.includeTeam ? ["studio@lumen.work"] : [])];
+  if (opts.channel === "link")
+    return { channel: "link", link: `/shared/${noteId.replace(/\W/g, "")}${Date.now().toString(36).slice(-5)}` };
+  if (opts.channel === "text") return { channel: "text", text: `${recap.subject}\n\n${recap.body}` };
+  return { channel: "email", sentTo: to };
+}
