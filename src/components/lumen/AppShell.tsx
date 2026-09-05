@@ -2,6 +2,7 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import {
+  Bell,
   CalendarDays,
   CheckSquare,
   Circle,
@@ -34,6 +35,7 @@ const nav = [
   { to: "/actions", label: "Action Items", icon: CheckSquare, exact: false },
   { to: "/clients", label: "Clients", icon: Users, exact: false },
   { to: "/templates", label: "Templates", icon: LayoutTemplate, exact: false },
+  { to: "/alerts", label: "Alerts", icon: Bell, exact: false },
   { to: "/search", label: "Search", icon: Search, exact: false },
 ] as const;
 
@@ -48,6 +50,8 @@ function todayLabel() {
 export function AppShell({ children }: { children: ReactNode }) {
   const { theme, toggleTheme } = useUi();
   const [open, setOpen] = useState(false);
+  const [today, setToday] = useState("");
+  useEffect(() => setToday(todayLabel()), []);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -109,7 +113,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <X className="size-4" />
           </button>
         </div>
-        <p className="px-5 pb-5 text-xs text-muted-foreground">{todayLabel()}</p>
+        <p className="px-5 pb-5 text-xs text-muted-foreground">{today || "\u00a0"}</p>
 
         <nav className="flex flex-col gap-0.5 px-3">
           {nav.map((n) => (

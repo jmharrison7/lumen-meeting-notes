@@ -115,3 +115,33 @@ export interface Template {
   sizeBytes?: number | undefined;
   createdAtISO: string;
 }
+
+export interface AlertRule {
+  id: string;
+  term: string;
+  enabled: boolean;
+  notify: boolean;
+}
+
+export interface TopicAlertConfig {
+  enabled: boolean;
+  topics: { key: string; label: string; enabled: boolean }[];
+}
+
+export interface GlobalAlertConfig {
+  rules: AlertRule[];
+  topics: TopicAlertConfig;
+}
+
+export interface ClientAlertConfig {
+  clientId: string;
+  inheritGlobal: boolean;
+  rules: AlertRule[];
+}
+
+export interface MentionHit {
+  term: string;
+  snippet: string;
+  atSeconds?: number | undefined;
+  topic?: string | undefined;
+}

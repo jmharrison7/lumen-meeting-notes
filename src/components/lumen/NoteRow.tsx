@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { CheckSquare } from "lucide-react";
 import { ClientChip, Tag } from "./primitives";
+import { AlertGlyph } from "./Mentions";
 import { formatDuration, fullDate, relativeDate } from "@/lib/format";
 import type { Client, Note } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -59,6 +60,7 @@ export function NoteRow({
             {note.tags.map((t) => (
               <Tag key={t}>{t}</Tag>
             ))}
+            <AlertGlyph noteId={note.id} />
             {openItems > 0 ? (
               <span className="ml-auto inline-flex items-center gap-1 rounded-md bg-ember-soft px-1.5 py-0.5 text-[11px] font-medium text-ember">
                 <CheckSquare className="size-3" />

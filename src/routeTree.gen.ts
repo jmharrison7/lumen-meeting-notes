@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActionsRouteImport } from './routes/actions'
+import { Route as AlertsRouteImport } from './routes/alerts'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as ClientsIndexRouteImport } from './routes/clients.index'
@@ -28,6 +29,11 @@ const IndexRoute = IndexRouteImport.update({
 const ActionsRoute = ActionsRouteImport.update({
   id: '/actions',
   path: '/actions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AlertsRoute = AlertsRouteImport.update({
+  id: '/alerts',
+  path: '/alerts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SearchRoute = SearchRouteImport.update({
@@ -74,6 +80,7 @@ const NotesNoteIdRoute = NotesNoteIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/actions': typeof ActionsRoute
+  '/alerts': typeof AlertsRoute
   '/search': typeof SearchRoute
   '/templates': typeof TemplatesRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
@@ -86,6 +93,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/actions': typeof ActionsRoute
+  '/alerts': typeof AlertsRoute
   '/search': typeof SearchRoute
   '/templates': typeof TemplatesRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
@@ -99,6 +107,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/actions': typeof ActionsRoute
+  '/alerts': typeof AlertsRoute
   '/search': typeof SearchRoute
   '/templates': typeof TemplatesRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
@@ -113,6 +122,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/actions'
+    | '/alerts'
     | '/search'
     | '/templates'
     | '/clients/$clientId'
@@ -125,6 +135,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/actions'
+    | '/alerts'
     | '/search'
     | '/templates'
     | '/clients/$clientId'
@@ -137,6 +148,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/actions'
+    | '/alerts'
     | '/search'
     | '/templates'
     | '/clients/$clientId'
@@ -150,6 +162,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActionsRoute: typeof ActionsRoute
+  AlertsRoute: typeof AlertsRoute
   SearchRoute: typeof SearchRoute
   TemplatesRoute: typeof TemplatesRoute
   ClientsClientIdRoute: typeof ClientsClientIdRoute
@@ -174,6 +187,13 @@ declare module '@tanstack/react-router' {
       path: '/actions'
       fullPath: '/actions'
       preLoaderRoute: typeof ActionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/alerts': {
+      id: '/alerts'
+      path: '/alerts'
+      fullPath: '/alerts'
+      preLoaderRoute: typeof AlertsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/search': {
@@ -238,6 +258,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActionsRoute: ActionsRoute,
+  AlertsRoute: AlertsRoute,
   SearchRoute: SearchRoute,
   TemplatesRoute: TemplatesRoute,
   ClientsClientIdRoute: ClientsClientIdRoute,

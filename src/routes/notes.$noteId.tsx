@@ -40,6 +40,7 @@ import { useUi } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import type { ActionItem } from "@/lib/types";
 import { FollowUpDialog } from "@/components/lumen/FollowUpDialog";
+import { MentionBanner } from "@/components/lumen/Mentions";
 
 export const Route = createFileRoute("/notes/$noteId")({
   head: () => ({
@@ -175,6 +176,8 @@ function NoteDetail() {
           </Action>
         </div>
       </header>
+
+      <MentionBanner noteId={n.id} />
 
       <Section title="Summary">
         <p
