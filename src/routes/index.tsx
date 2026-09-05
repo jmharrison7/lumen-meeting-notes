@@ -6,6 +6,8 @@ import { dueBucket, formatTime } from "@/lib/format";
 import { ClientChip, EmptyState, ListSkeleton, PlatformBadge, SectionTitle } from "@/components/lumen/primitives";
 import { NoteRow } from "@/components/lumen/NoteRow";
 import { InstallHint } from "@/components/lumen/InstallHint";
+import { LiveCard } from "@/components/lumen/LiveCard";
+
 import { useUi } from "@/lib/ui-store";
 
 export const Route = createFileRoute("/")({
@@ -66,6 +68,9 @@ function TodayPage() {
       </header>
 
       <InstallHint className="md:hidden" />
+
+      <LiveCard />
+
 
       <section className="space-y-3">
         <SectionTitle>Today's meetings</SectionTitle>

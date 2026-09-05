@@ -50,3 +50,38 @@ export interface CalendarEvent {
   end: string;
   platform: Platform;
 }
+
+export interface LiveSegment {
+  id: string;
+  atISO: string;
+  kind: "speech" | "note" | "decision" | "action";
+  speaker?: string | undefined;
+  text: string;
+  actionOwner?: string | undefined;
+  actionDue?: string | undefined;
+}
+
+export interface LiveSession {
+  id: string;
+  title: string;
+  clientId?: string | undefined;
+  platform: Platform;
+  startedAtISO: string;
+  attendees: string[];
+  segments: LiveSegment[];
+  status: "capturing" | "paused" | "ended";
+}
+
+export type FollowUpTone = "warm" | "professional" | "concise";
+
+export interface FollowUpOptions {
+  tone: FollowUpTone;
+  includeQuestions: boolean;
+  includeActionItems: boolean;
+}
+
+export interface FollowUpDraft {
+  subject: string;
+  bodyMarkdown: string;
+  bodyText: string;
+}

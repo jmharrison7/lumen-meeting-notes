@@ -8,6 +8,7 @@ import {
   Copy,
   Download,
   FileDown,
+  Mail,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -38,6 +39,7 @@ import {
 import { useUi } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import type { ActionItem } from "@/lib/types";
+import { FollowUpDialog } from "@/components/lumen/FollowUpDialog";
 
 export const Route = createFileRoute("/notes/$noteId")({
   head: () => ({
@@ -66,6 +68,7 @@ function NoteDetail() {
   const [showTranscript, setShowTranscript] = useState(false);
   const [editing, setEditing] = useState(false);
   const [mdOpen, setMdOpen] = useState(false);
+  const [followUpOpen, setFollowUpOpen] = useState(false);
 
   const note = useQuery({ queryKey: ["note", noteId], queryFn: () => getNote(noteId) });
   const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
@@ -157,6 +160,9 @@ function NoteDetail() {
           </Action>
           <Action onClick={() => setMdOpen(true)}>
             <Copy className="size-3.5" /> Copy markdown
+          </Action>
+          <Action onClick={() => setFollowUpOpen(true)}>
+            <Mail className="size-3.5" /> Draft follow-up
           </Action>
           <Action onClick={() => download(`${n.id}.md`, md)}>
             <FileDown className="size-3.5" /> Export
@@ -292,6 +298,8 @@ function NoteDetail() {
           </pre>
         ) : null}
       </section>
+
+      <FollowUpDialog note={n} open={followUpOpen} onOpenChange={setFollowUpOpen} />
 
       <Dialog open={mdOpen} onOpenChange={setMdOpen}>
         <DialogContent className="max-w-2xl">
