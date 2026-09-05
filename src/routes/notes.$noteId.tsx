@@ -12,6 +12,7 @@ import {
   MessageCircleQuestion,
   Send,
   Trash2,
+  Link2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { deleteNotes, getNote, listClients, updateActionItem } from "@/lib/api";
@@ -42,6 +43,7 @@ import {
   relativeDate,
 } from "@/lib/format";
 import { useUi } from "@/lib/ui-store";
+import { useAccess } from "@/lib/access-store";
 import { cn } from "@/lib/utils";
 import type { ActionItem } from "@/lib/types";
 import { FollowUpDialog } from "@/components/lumen/FollowUpDialog";
@@ -49,6 +51,7 @@ import { MentionBanner } from "@/components/lumen/Mentions";
 import { PlaybackBar, TimeChip } from "@/components/lumen/PlaybackBar";
 import { ShareRecapDialog } from "@/components/lumen/ShareRecapDialog";
 import { AskPanel } from "@/components/lumen/AskPanel";
+import { ShareLinkDialog } from "@/components/lumen/ShareLinkDialog";
 
 export const Route = createFileRoute("/notes/$noteId")({
   head: () => ({
@@ -426,6 +429,13 @@ function NoteDetail() {
       </section>
 
       <FollowUpDialog note={n} open={followUpOpen} onOpenChange={setFollowUpOpen} />
+      <ShareLinkDialog
+        target={{ type: "note", id: n.id }}
+        label={n.title}
+        open={linkOpen}
+        onOpenChange={setLinkOpen}
+      />
+
       <ShareRecapDialog
         note={n}
         clientName={client?.name ?? "Client"}
