@@ -91,7 +91,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const { previewing, collaborators, previewAs, isOwner } = useAccess();
   const visibleNav = nav.filter(
-    (n) => isOwner || !["/templates", "/alerts", "/collaborators"].includes(n.to),
+    (n) => isOwner || !["/templates", "/alerts", "/collaborators", "/contacts"].includes(n.to),
   );
 
   const { data: notes } = useQuery({ queryKey: ["notes"], queryFn: listNotes });
