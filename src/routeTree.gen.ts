@@ -11,8 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActionsRouteImport } from './routes/actions'
-import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as ClientsIndexRouteImport } from './routes/clients.index'
 import { Route as LiveIndexRouteImport } from './routes/live.index'
 import { Route as LiveSessionIdRouteImport } from './routes/live.$sessionId'
 import { Route as NotesIndexRouteImport } from './routes/notes.index'
@@ -28,14 +28,14 @@ const ActionsRoute = ActionsRouteImport.update({
   path: '/actions',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ClientsRoute = ClientsRouteImport.update({
-  id: '/clients',
-  path: '/clients',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
   path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClientsIndexRoute = ClientsIndexRouteImport.update({
+  id: '/clients/',
+  path: '/clients/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LiveIndexRoute = LiveIndexRouteImport.update({
@@ -62,20 +62,20 @@ const NotesNoteIdRoute = NotesNoteIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/actions': typeof ActionsRoute
-  '/clients': typeof ClientsRoute
   '/search': typeof SearchRoute
   '/live/$sessionId': typeof LiveSessionIdRoute
   '/notes/$noteId': typeof NotesNoteIdRoute
+  '/clients/': typeof ClientsIndexRoute
   '/live/': typeof LiveIndexRoute
   '/notes/': typeof NotesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/actions': typeof ActionsRoute
-  '/clients': typeof ClientsRoute
   '/search': typeof SearchRoute
   '/live/$sessionId': typeof LiveSessionIdRoute
   '/notes/$noteId': typeof NotesNoteIdRoute
+  '/clients': typeof ClientsIndexRoute
   '/live': typeof LiveIndexRoute
   '/notes': typeof NotesIndexRoute
 }
@@ -83,10 +83,10 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/actions': typeof ActionsRoute
-  '/clients': typeof ClientsRoute
   '/search': typeof SearchRoute
   '/live/$sessionId': typeof LiveSessionIdRoute
   '/notes/$noteId': typeof NotesNoteIdRoute
+  '/clients/': typeof ClientsIndexRoute
   '/live/': typeof LiveIndexRoute
   '/notes/': typeof NotesIndexRoute
 }
@@ -95,30 +95,30 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/actions'
-    | '/clients'
     | '/search'
     | '/live/$sessionId'
     | '/notes/$noteId'
+    | '/clients/'
     | '/live/'
     | '/notes/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/actions'
-    | '/clients'
     | '/search'
     | '/live/$sessionId'
     | '/notes/$noteId'
+    | '/clients'
     | '/live'
     | '/notes'
   id:
     | '__root__'
     | '/'
     | '/actions'
-    | '/clients'
     | '/search'
     | '/live/$sessionId'
     | '/notes/$noteId'
+    | '/clients/'
     | '/live/'
     | '/notes/'
   fileRoutesById: FileRoutesById
@@ -126,10 +126,10 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActionsRoute: typeof ActionsRoute
-  ClientsRoute: typeof ClientsRoute
   SearchRoute: typeof SearchRoute
   LiveSessionIdRoute: typeof LiveSessionIdRoute
   NotesNoteIdRoute: typeof NotesNoteIdRoute
+  ClientsIndexRoute: typeof ClientsIndexRoute
   LiveIndexRoute: typeof LiveIndexRoute
   NotesIndexRoute: typeof NotesIndexRoute
 }
@@ -150,18 +150,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ActionsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/clients': {
-      id: '/clients'
-      path: '/clients'
-      fullPath: '/clients'
-      preLoaderRoute: typeof ClientsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/search': {
       id: '/search'
       path: '/search'
       fullPath: '/search'
       preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/clients/': {
+      id: '/clients/'
+      path: '/clients'
+      fullPath: '/clients/'
+      preLoaderRoute: typeof ClientsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/live/': {
@@ -198,10 +198,10 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActionsRoute: ActionsRoute,
-  ClientsRoute: ClientsRoute,
   SearchRoute: SearchRoute,
   LiveSessionIdRoute: LiveSessionIdRoute,
   NotesNoteIdRoute: NotesNoteIdRoute,
+  ClientsIndexRoute: ClientsIndexRoute,
   LiveIndexRoute: LiveIndexRoute,
   NotesIndexRoute: NotesIndexRoute,
 }
