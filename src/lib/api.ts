@@ -112,7 +112,7 @@ export async function updateActionItem(
   patch: Partial<
     Pick<
       ActionItem,
-      "done" | "owner" | "dueDate" | "priority" | "syncedToTeamwork" | "parentId" | "position" | "text"
+      "done" | "owner" | "dueDate" | "priority" | "syncedToTeamwork" | "parentId" | "position" | "text" | "clientId"
     >
   >,
 ): Promise<ActionItem> {
