@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { listClients } from "@/lib/api";
 import { TemplatesPanel } from "@/components/lumen/TemplatesPanel";
+import { TodoTemplatesPanel } from "@/components/lumen/TodoTemplatesPanel";
 import { tagStyles } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -33,9 +34,13 @@ function TemplatesPage() {
       <header>
         <h1 className="text-title text-3xl font-semibold tracking-tight">Templates</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          The documents you start from — estimates, agendas, brand shells.
+          Two kinds: reusable <span className="font-medium text-foreground">to-do blocks</span> for
+          your typical processes, and the <span className="font-medium text-foreground">documents</span>{" "}
+          you start from.
         </p>
       </header>
+
+      <TodoTemplatesPanel />
 
       <div className="flex flex-wrap gap-1.5">
         <button

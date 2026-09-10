@@ -72,6 +72,24 @@ export interface TranscriptLine {
   text: string;
 }
 
+export interface ActionTemplateItem {
+  id: string;
+  text: string;
+  /** Days after the start date — this is how a template carries timing. */
+  offsetDays?: number | undefined;
+  priority?: Priority | undefined;
+  position?: number | undefined;
+}
+
+/** A reusable to-do block for a typical process (e.g. "Brand identity design"). */
+export interface ActionTemplate {
+  id: string;
+  name: string;
+  clientId?: string | undefined;
+  createdAtISO: string;
+  items: ActionTemplateItem[];
+}
+
 export interface CalendarEvent {
   id: string;
   title: string;

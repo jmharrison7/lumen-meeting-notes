@@ -1,5 +1,5 @@
 import { actionItems, calendar, clientsWithStats, notes } from "./mock-data";
-import type { ActionItem, CalendarEvent, Client, Note, Priority, TagColor } from "./types";
+import type { ActionItem, ActionTemplate, CalendarEvent, Client, Note, Priority, TagColor } from "./types";
 
 /**
  * Thin client layer. Production always talks HTTP; local/dev builds can omit
@@ -162,6 +162,58 @@ export async function deleteActionItem(id: string): Promise<void> {
   await delay(160);
   const i = actionItems.findIndex((a) => a.id === id);
   if (i >= 0) actionItems.splice(i, 1);
+}
+
+/* ------------------------------------------------------------------ *
+ * To-do templates — reusable task blocks for typical processes
+ * ------------------------------------------------------------------ */
+
+export async function listActionTemplates(): Promise<ActionTemplate[]> {
+  if (BASE) return http<ActionTemplate[]>("/action-templates");
+  await delay();
+  return [];
+}
+
+/** `items[].offsetDays` is the timing: applied as startDate + offsetDays. */
+export async function createActionTemplate(input: {
+  name: string;
+  clientId?: string | undefined;
+  items: { text: string; offsetDays?: number | undefined }[];
+}): Promise<ActionTemplate> {
+  if (BASE)
+    return http<ActionTemplate>("/action-templates", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  await delay(160);
+  return {
+    id: `at_${Math.random().toString(36).slice(2, 8)}`,
+    name: input.name,
+    createdAtISO: new Date().toISOString(),
+    items: [],
+  };
+}
+
+export async function deleteActionTemplate(id: string): Promise<void> {
+  if (BASE) {
+    await http<void>(`/action-templates/${id}`, { method: "DELETE" });
+    return;
+  }
+  await delay(160);
+}
+
+/** Generate the whole task schedule for a client from a template. */
+export async function applyActionTemplate(
+  id: string,
+  input: { clientId: string; startDate?: string | undefined },
+): Promise<{ created: number }> {
+  if (BASE)
+    return http<{ created: number }>(`/action-templates/${id}/apply`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  await delay(200);
+  return { created: 0 };
 }
 
 export async function deleteNotes(ids: string[]): Promise<void> {
