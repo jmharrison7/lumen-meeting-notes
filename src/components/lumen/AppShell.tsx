@@ -7,7 +7,6 @@ import {
   CalendarDays,
   CheckSquare,
   Circle,
-  Command as CommandIcon,
   FileText,
   LayoutTemplate,
   Lightbulb,
@@ -34,13 +33,14 @@ import { useUi } from "@/lib/ui-store";
 import { getLiveSession, listNotes } from "@/lib/api";
 import { useAccess } from "@/lib/access-store";
 import { useAuth } from "@/lib/auth-store";
+import { useScope } from "@/lib/scope-store";
 import { MobileTabBar } from "./MobileTabBar";
 import { InstallHint } from "./InstallHint";
 
 const nav = [
   { to: "/", label: "Today", icon: CalendarDays, exact: true },
   { to: "/notes", label: "All Notes", icon: FileText, exact: false },
-  { to: "/actions", label: "Action Items", icon: CheckSquare, exact: false },
+  { to: "/actions", label: "To-do list", icon: CheckSquare, exact: false },
   { to: "/clients", label: "Clients", icon: Users, exact: false },
   { to: "/ideas", label: "Ideas", icon: Lightbulb, exact: false },
   { to: "/money", label: "Money", icon: Wallet, exact: false },
@@ -62,6 +62,7 @@ function todayLabel() {
 export function AppShell({ children }: { children: ReactNode }) {
   const { theme, toggleTheme } = useUi();
   const { signOut } = useAuth();
+  const { scope, setScope } = useScope();
   const [open, setOpen] = useState(false);
   const [today, setToday] = useState("");
   useEffect(() => setToday(todayLabel()), []);
@@ -96,12 +97,25 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [navigate]);
 
   const { previewing, collaborators, previewAs, isOwner } = useAccess();
-  const visibleNav = nav.filter(
-    (n) => isOwner || !["/money", "/templates", "/alerts", "/collaborators", "/contacts"].includes(n.to),
-  );
+  // Money (business ledger) is a Work-workspace area only; hide it when the
+  // personal workspace toggle is active. Non-owners never see it regardless.
+  const visibleNav = nav.filter((n) => {
+    if (n.to === "/money" && scope === "personal") return false;
+    return isOwner || !["/money", "/templates", "/alerts", "/collaborators", "/contacts"].includes(n.to);
+  });
 
   const { data: notes } = useQuery({ queryKey: ["notes"], queryFn: listNotes });
   const { data: live } = useQuery({ queryKey: ["live"], queryFn: getLiveSession });
+
+  function startNewMeeting() {
+    setOpen(false);
+    if (pathname === "/") {
+      window.dispatchEvent(new CustomEvent("lumen:start-recording"));
+      return;
+    }
+    window.sessionStorage.setItem("lumen.startRecordingOnToday", "1");
+    void navigate({ to: "/" });
+  }
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -133,6 +147,21 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
         <p className="px-5 pb-5 text-xs text-muted-foreground">{today || "\u00a0"}</p>
 
+        <div className="mx-3 mb-4 grid grid-cols-2 rounded-lg border border-sidebar-border bg-background/50 p-1 text-xs">
+          {(["work", "personal"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setScope(s)}
+              className={cn(
+                "rounded-md px-2.5 py-1.5 font-medium capitalize transition-colors",
+                scope === s ? "bg-sidebar-accent text-sidebar-foreground shadow-sm" : "text-sidebar-foreground/60 hover:text-sidebar-foreground",
+              )}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+
         <nav className="flex flex-col gap-0.5 px-3">
           {visibleNav.map((n) => (
             <Link
@@ -149,14 +178,11 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <div className="px-3 pt-5">
           <button
-            onClick={() => setPaletteOpen(true)}
+            onClick={startNewMeeting}
             className="flex w-full items-center gap-2 rounded-lg border border-dashed border-sidebar-border px-2.5 py-2 text-left text-xs text-muted-foreground transition-colors hover:border-ember hover:text-foreground"
           >
             <Circle className="size-3 fill-ember text-ember" />
             Record a meeting
-            <span className="ml-auto inline-flex items-center gap-0.5 text-[10px] opacity-70">
-              <CommandIcon className="size-2.5" />K
-            </span>
           </button>
         </div>
 
@@ -211,8 +237,22 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="text-title text-[19px] font-semibold">Lumen</span>
             <span className="size-1.5 rounded-full bg-ember" />
           </Link>
+          <div className="mx-auto flex rounded-full border border-hairline bg-card p-0.5 text-[11px]">
+            {(["work", "personal"] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setScope(s)}
+                className={cn(
+                  "rounded-full px-2.5 py-1 font-medium capitalize transition-colors",
+                  scope === s ? "bg-ember-soft text-ember" : "text-muted-foreground",
+                )}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
           <button
-            onClick={() => setPaletteOpen(true)}
+            onClick={startNewMeeting}
             aria-label="Record a meeting"
             className="ml-auto inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-dashed border-border px-3 text-xs text-muted-foreground"
           >
@@ -231,7 +271,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b border-ember/30 bg-ember-soft px-4 py-2 text-xs text-ember md:px-10">
             <span>
               Previewing as {previewing.name ?? previewing.email} (
-              {previewing.role === "editor" ? "Editor" : "Viewer"}) —{" "}
+              {previewing.role === "editor" ? "Editor" : previewing.role === "contributor" ? "Contributor" : "Viewer"}) —{" "}
               {previewing.clientIds.length} client{previewing.clientIds.length === 1 ? "" : "s"}
             </span>
             <button
