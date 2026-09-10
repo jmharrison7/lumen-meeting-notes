@@ -111,7 +111,11 @@ export function TodoTemplatesPanel() {
             disabled={!name.trim() || !parsed.length || create.isPending}
             className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg bg-ember px-3.5 text-sm font-medium text-[oklch(0.99_0.005_85)] transition-opacity hover:opacity-90 disabled:opacity-40"
           >
-            {create.isPending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+            {create.isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Plus className="size-4" />
+            )}
             Save template
           </button>
           {parsed.length ? (
@@ -134,7 +138,10 @@ export function TodoTemplatesPanel() {
           {list.map((t) => {
             const sel = pick[t.id] ?? { clientId: "", startDate: "" };
             return (
-              <div key={t.id} className="flex flex-col rounded-xl border border-hairline bg-card p-4 shadow-soft">
+              <div
+                key={t.id}
+                className="flex flex-col rounded-xl border border-hairline bg-card p-4 shadow-soft"
+              >
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="text-title text-base font-semibold leading-snug">{t.name}</h3>
                   <button
@@ -195,7 +202,9 @@ export function TodoTemplatesPanel() {
                     <CalendarPlus className="size-3.5" /> Apply
                   </button>
                 </div>
-                <p className="mt-2 text-[11px] text-muted-foreground">Saved {relativeDate(t.createdAtISO)}</p>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Saved {relativeDate(t.createdAtISO)}
+                </p>
               </div>
             );
           })}
