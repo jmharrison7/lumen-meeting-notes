@@ -84,6 +84,10 @@ export interface CalendarEvent {
   location?: string | undefined;
   description?: string | undefined;
   attendees?: { name: string; email: string }[] | undefined;
+  /** All-day commitment (family/home) — sits above timed items and shows no clock time. */
+  allDay?: boolean | undefined;
+  /** Came from the shared Family Calendar rather than a client calendar. */
+  isFamily?: boolean | undefined;
 }
 
 export interface LiveSegment {

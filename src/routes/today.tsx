@@ -73,12 +73,17 @@ function MeetingRow({
       >
         <span className="inline-flex items-center gap-1.5 text-xs tabular-nums text-muted-foreground">
           <Clock className="size-3.5" />
-          {formatTime(event.start)}
+          {event.allDay ? "All day" : formatTime(event.start)}
         </span>
         <span className="text-title text-[15px] font-medium">{event.title}</span>
         {client ? <ClientChip name={client.name} color={client.tagColor} /> : null}
+        {event.isFamily ? (
+          <span className="rounded-full border border-hairline bg-surface px-2 py-0.5 text-[11px] text-muted-foreground">
+            Family
+          </span>
+        ) : null}
         <span className="ml-auto inline-flex items-center gap-2">
-          <PlatformBadge platform={event.platform} />
+          {!event.allDay ? <PlatformBadge platform={event.platform} /> : null}
           <ChevronDown
             className={`size-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
           />
@@ -111,7 +116,7 @@ function MeetingRow({
                 {event.platform === "zoom" ? "Join Zoom" : "Join Google Meet"}
               </a>
             ) : null}
-            {canContribute ? (
+            {canContribute && !event.allDay ? (
               <button
                 type="button"
                 onClick={startRecording}
