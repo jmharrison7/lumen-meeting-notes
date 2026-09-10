@@ -1,8 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { ArrowLeft, Link2, Sparkles } from "lucide-react";
-import { listClients, listIdeas, listNotes } from "@/lib/api";
+import { ArrowLeft, Link2, Plus, Sparkles } from "lucide-react";
+import {
+  createActionItem,
+  deleteActionItem,
+  listClientActionItems,
+  listClients,
+  listIdeas,
+  listNotes,
+  updateActionItem,
+} from "@/lib/api";
 import { EmptyState, ErrorState, ListSkeleton } from "@/components/lumen/primitives";
 import { NoteRow } from "@/components/lumen/NoteRow";
 import { FilesPanel } from "@/components/lumen/FilesPanel";
@@ -11,10 +19,12 @@ import { AskPanel } from "@/components/lumen/AskPanel";
 import { BrandDnaPanel } from "@/components/lumen/BrandDnaPanel";
 import { QuickCapture } from "@/components/lumen/QuickCapture";
 import { IdeasGrid } from "@/components/lumen/IdeasGrid";
+import { TodoList } from "@/components/lumen/TodoList";
 import { AccessPanel } from "@/components/lumen/AccessPanel";
 import { ShareLinkDialog } from "@/components/lumen/ShareLinkDialog";
 import { useAccess } from "@/lib/access-store";
 import { cn } from "@/lib/utils";
+import type { ActionItem } from "@/lib/types";
 
 export const Route = createFileRoute("/clients/$clientId")({
   head: () => ({
@@ -34,7 +44,7 @@ export const Route = createFileRoute("/clients/$clientId")({
   component: ClientDetail,
 });
 
-const allTabs = ["Notes", "Ideas", "Files", "Brand DNA", "Templates", "Ask", "Access"] as const;
+const allTabs = ["Notes", "To-do list", "Ideas", "Files", "Brand DNA", "Templates", "Ask", "Access"] as const;
 type Tab = (typeof allTabs)[number];
 
 function ClientDetail() {
@@ -47,6 +57,45 @@ function ClientDetail() {
   const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
   const notes = useQuery({ queryKey: ["notes"], queryFn: listNotes });
   const ideas = useQuery({ queryKey: ["ideas"], queryFn: listIdeas });
+  const qc = useQueryClient();
+
+  // To-do list, dual-placed: the same items as the standalone page, scoped to this client.
+  const todos = useQuery({
+    queryKey: ["clientActionItems", clientId],
+    queryFn: () => listClientActionItems(clientId),
+  });
+  const [todoText, setTodoText] = useState("");
+  const [todoDue, setTodoDue] = useState("");
+  const [todoAdding, setTodoAdding] = useState(false);
+
+  const refreshTodos = async () => {
+    await qc.invalidateQueries({ queryKey: ["clientActionItems", clientId] });
+    await qc.invalidateQueries({ queryKey: ["actionItems"] });
+  };
+
+  async function addTodo() {
+    const text = todoText.trim();
+    if (!text || todoAdding) return;
+    setTodoAdding(true);
+    try {
+      await createActionItem({ text, clientId, dueDate: todoDue || undefined });
+      setTodoText("");
+      setTodoDue("");
+      await refreshTodos();
+    } finally {
+      setTodoAdding(false);
+    }
+  }
+
+  async function toggleTodo(item: ActionItem) {
+    await updateActionItem(item.id, { done: !item.done });
+    await refreshTodos();
+  }
+
+  async function removeTodo(item: ActionItem) {
+    await deleteActionItem(item.id);
+    await refreshTodos();
+  }
 
   const client = (clients.data ?? []).find((c) => c.id === clientId);
   const clientIdeas = (ideas.data ?? []).filter((i) => i.clientId === clientId && (i.status ?? "accepted") !== "pending");
@@ -139,6 +188,55 @@ function ClientDetail() {
             ))}
           </div>
         )
+      ) : tab === "To-do list" ? (
+        <div className="space-y-5">
+          {canContribute ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void addTodo();
+              }}
+              className="flex flex-wrap items-center gap-2 rounded-xl border border-hairline bg-card p-3 shadow-soft"
+            >
+              <input
+                value={todoText}
+                onChange={(e) => setTodoText(e.target.value)}
+                placeholder="Add a to-do…"
+                aria-label="New to-do"
+                className="min-h-[44px] min-w-[12rem] flex-1 rounded-lg border border-hairline bg-surface px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ember/40"
+              />
+              <input
+                type="date"
+                value={todoDue}
+                onChange={(e) => setTodoDue(e.target.value)}
+                aria-label="Due date (optional)"
+                className="h-11 rounded-lg border border-hairline bg-card px-2.5 text-sm outline-none focus:ring-2 focus:ring-ring/30"
+              />
+              <button
+                type="submit"
+                disabled={!todoText.trim() || todoAdding}
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg bg-ember px-3.5 text-sm font-medium text-[oklch(0.99_0.005_85)] transition-opacity hover:opacity-90 disabled:opacity-40"
+              >
+                <Plus className="size-4" /> Add
+              </button>
+            </form>
+          ) : null}
+          {todos.isError ? (
+            <ErrorState onRetry={() => void todos.refetch()} />
+          ) : todos.isLoading ? (
+            <ListSkeleton rows={3} />
+          ) : (
+            <TodoList
+              items={todos.data ?? []}
+              clients={clients.data ?? []}
+              canEdit={canContribute}
+              onToggle={(a) => void toggleTodo(a)}
+              onDelete={(a) => void removeTodo(a)}
+              emptyTitle="No to-dos for this client yet"
+              emptyBody="Add one above, or record a meeting and Lumen will pull the commitments out for you."
+            />
+          )}
+        </div>
       ) : tab === "Ideas" ? (
         <div className="space-y-5">
           {canContribute ? <QuickCapture defaultClientId={clientId} /> : null}
