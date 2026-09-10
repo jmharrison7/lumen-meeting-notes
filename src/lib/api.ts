@@ -1,5 +1,5 @@
 import { actionItems, calendar, clientsWithStats, notes } from "./mock-data";
-import type { ActionItem, CalendarEvent, Client, Note, TagColor } from "./types";
+import type { ActionItem, CalendarEvent, Client, Note, Priority, TagColor } from "./types";
 
 /**
  * Thin client layer. Production always talks HTTP; local/dev builds can omit
@@ -61,6 +61,17 @@ export async function listActionItems(): Promise<ActionItem[]> {
   return clone(actionItems);
 }
 
+/**
+ * Same list, scoped to one client — used by the per-client To-do tab (dual placement).
+ * Deliberately a separate function: `listActionItems` is passed straight to React Query as
+ * a `queryFn`, so adding a parameter there would receive the query context object instead.
+ */
+export async function listClientActionItems(clientId: string): Promise<ActionItem[]> {
+  if (BASE) return http<ActionItem[]>(`/action-items?clientId=${encodeURIComponent(clientId)}`);
+  await delay();
+  return clone(actionItems.filter((a) => a.clientId === clientId));
+}
+
 export async function listTodayEvents(): Promise<CalendarEvent[]> {
   if (BASE) return http<CalendarEvent[]>("/calendar/today");
   await delay(260);
@@ -98,7 +109,12 @@ export async function searchNotes(q: string): Promise<Note[]> {
 
 export async function updateActionItem(
   id: string,
-  patch: Partial<Pick<ActionItem, "done" | "owner" | "dueDate" | "priority" | "syncedToTeamwork">>,
+  patch: Partial<
+    Pick<
+      ActionItem,
+      "done" | "owner" | "dueDate" | "priority" | "syncedToTeamwork" | "parentId" | "position" | "text"
+    >
+  >,
 ): Promise<ActionItem> {
   if (BASE)
     return http<ActionItem>(`/action-items/${id}`, {
@@ -110,6 +126,42 @@ export async function updateActionItem(
   if (!item) throw new Error("Action item not found");
   Object.assign(item, patch);
   return clone(item);
+}
+
+/** Create a to-do directly — no meeting required (Mary: the list must stand on its own). */
+export async function createActionItem(input: {
+  text: string;
+  clientId?: string | undefined;
+  dueDate?: string | undefined;
+  priority?: Priority | undefined;
+  owner?: string | undefined;
+  parentId?: string | undefined;
+}): Promise<ActionItem> {
+  if (BASE)
+    return http<ActionItem>("/action-items", { method: "POST", body: JSON.stringify(input) });
+  await delay(160);
+  const item: ActionItem = {
+    id: `a_${Math.random().toString(36).slice(2, 8)}`,
+    text: input.text,
+    owner: input.owner ?? "",
+    priority: input.priority ?? "medium",
+    done: false,
+  };
+  if (input.clientId) item.clientId = input.clientId;
+  if (input.dueDate) item.dueDate = input.dueDate;
+  if (input.parentId) item.parentId = input.parentId;
+  actionItems.push(item);
+  return clone(item);
+}
+
+export async function deleteActionItem(id: string): Promise<void> {
+  if (BASE) {
+    await http<void>(`/action-items/${id}`, { method: "DELETE" });
+    return;
+  }
+  await delay(160);
+  const i = actionItems.findIndex((a) => a.id === id);
+  if (i >= 0) actionItems.splice(i, 1);
 }
 
 export async function deleteNotes(ids: string[]): Promise<void> {

@@ -21,13 +21,13 @@ import type { ActionItem } from "@/lib/types";
 export const Route = createFileRoute("/actions")({
   head: () => ({
     meta: [
-      { title: "Action items — Lumen" },
+      { title: "To-do list — Lumen" },
       {
         name: "description",
         content:
-          "Every commitment made on a call, grouped by what's overdue, due today, this week, and later.",
+          "Everything on your plate, grouped by what's overdue, due today, this week, and later.",
       },
-      { property: "og:title", content: "Action items — Lumen" },
+      { property: "og:title", content: "To-do list — Lumen" },
       {
         property: "og:description",
         content: "Every commitment made on a call, grouped by when it's due.",
@@ -56,7 +56,10 @@ function ActionsPage() {
   const all = useMemo(
     () => {
       const scopedClientIds = new Set((clients.data ?? []).filter((c) => (c.scope ?? "work") === scope).map((c) => c.id));
-      return (items.data ?? []).map(applyItem).filter((a) => canSeeClient(a.clientId) && scopedClientIds.has(a.clientId));
+      return (items.data ?? [])
+        .map(applyItem)
+        // Unassigned to-dos (no client yet) belong on the list too — they get their own column.
+        .filter((a) => (!a.clientId ? true : canSeeClient(a.clientId) && scopedClientIds.has(a.clientId)));
     },
     [items.data, clients.data, applyItem, canSeeClient, scope],
   );
@@ -68,7 +71,7 @@ function ActionsPage() {
       (ownerFilter === "all" || a.owner === ownerFilter),
   );
 
-  const clientOf = (id: string) => clients.data?.find((c) => c.id === id);
+  const clientOf = (id?: string) => (id ? clients.data?.find((c) => c.id === id) : undefined);
 
   async function toggle(item: ActionItem) {
     if (!canEdit) return;
@@ -81,7 +84,7 @@ function ActionsPage() {
   return (
     <div className="space-y-8">
       <header>
-        <h1 className="text-title text-3xl font-semibold tracking-tight">Action items</h1>
+        <h1 className="text-title text-3xl font-semibold tracking-tight">To-do list</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
           {filtered.filter((a) => !a.done).length} open across {scope === "personal" ? "personal areas" : "your clients"}.
         </p>
@@ -213,13 +216,15 @@ function Card({
           <span>{item.owner}</span>
           {clientName && color ? <ClientChip name={clientName} color={color} /> : null}
           <DueBadge iso={item.dueDate} done={item.done} />
-          <Link
-            to="/notes/$noteId"
-            params={{ noteId: item.noteId }}
-            className="truncate rounded hover:text-ember focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-          >
-            {item.noteTitle}
-          </Link>
+          {item.noteId && item.noteTitle ? (
+            <Link
+              to="/notes/$noteId"
+              params={{ noteId: item.noteId }}
+              className="truncate rounded hover:text-ember focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            >
+              {item.noteTitle}
+            </Link>
+          ) : null}
         </div>
       </div>
     </div>

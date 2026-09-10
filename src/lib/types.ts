@@ -18,9 +18,11 @@ export type Priority = "low" | "medium" | "high";
 
 export interface ActionItem {
   id: string;
-  noteId: string;
-  noteTitle: string;
-  clientId: string;
+  /** Absent on manual to-dos — items added straight to the list, with no meeting behind them. */
+  noteId?: string | undefined;
+  noteTitle?: string | undefined;
+  /** Empty/absent on unassigned to-dos (shown in the Unassigned column). */
+  clientId?: string | undefined;
   text: string;
   owner: string;
   dueDate?: string | undefined;
@@ -28,6 +30,12 @@ export interface ActionItem {
   done: boolean;
   atSeconds?: number | undefined;
   syncedToTeamwork?: boolean | undefined;
+  /** Subtask parent — lets a to-do hold sub-tasks, each with its own due date. */
+  parentId?: string | undefined;
+  /** Explicit manual ordering; when absent the list falls back to due date, then creation. */
+  position?: number | undefined;
+  /** Stamped when completed — done items persist in the list rather than disappearing. */
+  completedAt?: string | undefined;
 }
 
 export type Platform = "google-meet" | "zoom" | "in-person";
