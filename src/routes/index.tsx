@@ -10,7 +10,6 @@ import { NoteRow } from "@/components/lumen/NoteRow";
 import { InstallHint } from "@/components/lumen/InstallHint";
 import { LiveCard } from "@/components/lumen/LiveCard";
 import { MoneyCard } from "@/components/lumen/MoneyCard";
-import { QuickCapture } from "@/components/lumen/QuickCapture";
 
 import { useUi } from "@/lib/ui-store";
 import { useAccess } from "@/lib/access-store";
@@ -220,19 +219,6 @@ function TodayPage() {
       <InstallHint className="md:hidden" />
 
       <LiveCard />
-
-      {canContribute ? (
-        <QuickCapture
-          scope={scope}
-          heading={scope === "personal" ? "Start a planning recording" : "Start a meeting recording"}
-          recordLabel={scope === "personal" ? "Record a planning session" : "Record a meeting"}
-          listeningLabel={
-            scope === "personal" ? "Listening — capture the plan as it happens" : "Listening — capture the meeting as it happens"
-          }
-          typePlaceholder={scope === "personal" ? "…or type a plan, supply note or reminder" : "…or type meeting notes"}
-          assignLabel={scope === "personal" ? "Assign to a personal area" : undefined}
-        />
-      ) : null}
 
       <section className="space-y-3">
         <SectionTitle>{scope === "personal" ? "Today's personal calendar" : "Today's meetings"}</SectionTitle>

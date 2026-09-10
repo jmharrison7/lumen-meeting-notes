@@ -28,6 +28,14 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { QuickCapture } from "./QuickCapture";
 import { cn } from "@/lib/utils";
 import { useUi } from "@/lib/ui-store";
 import { getLiveSession, listNotes } from "@/lib/api";
@@ -107,14 +115,33 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { data: notes } = useQuery({ queryKey: ["notes"], queryFn: listNotes });
   const { data: live } = useQuery({ queryKey: ["live"], queryFn: getLiveSession });
 
+  const [captureOpen, setCaptureOpen] = useState(false);
+  const [captureSeed, setCaptureSeed] = useState<{ clientId?: string; title?: string } | null>(null);
+
+  // Recording lives in the persistent sidebar/mobile control now (the centre capture card
+  // was removed from Today at Mary's request), so these events open the capture dialog.
+  useEffect(() => {
+    const onStart = () => {
+      setCaptureSeed(null);
+      setCaptureOpen(true);
+    };
+    const onMeetingStart = (ev: Event) => {
+      const d = ((ev as CustomEvent).detail || {}) as { clientId?: string; title?: string };
+      setCaptureSeed(d);
+      setCaptureOpen(true);
+    };
+    window.addEventListener("lumen:start-recording", onStart);
+    window.addEventListener("lumen:start-meeting-recording", onMeetingStart);
+    return () => {
+      window.removeEventListener("lumen:start-recording", onStart);
+      window.removeEventListener("lumen:start-meeting-recording", onMeetingStart);
+    };
+  }, []);
+
   function startNewMeeting() {
     setOpen(false);
-    if (pathname === "/") {
-      window.dispatchEvent(new CustomEvent("lumen:start-recording"));
-      return;
-    }
-    window.sessionStorage.setItem("lumen.startRecordingOnToday", "1");
-    void navigate({ to: "/" });
+    setCaptureSeed(null);
+    setCaptureOpen(true);
   }
 
   return (
@@ -288,6 +315,27 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
 
       <MobileTabBar />
+
+      <Dialog open={captureOpen} onOpenChange={setCaptureOpen}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{captureSeed?.title ?? "Capture"}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Record a meeting or capture a note.
+            </DialogDescription>
+          </DialogHeader>
+          {captureOpen ? (
+            <QuickCapture
+              autoStart
+              seedClientId={captureSeed?.clientId}
+              seedTitle={captureSeed?.title}
+              heading={captureSeed?.title ? "Recording this meeting" : "Quick capture"}
+              recordLabel="Record a meeting"
+              typePlaceholder="…or type meeting notes"
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
 
       <CommandDialog open={paletteOpen} onOpenChange={setPaletteOpen}>

@@ -35,6 +35,9 @@ export function QuickCapture({
   listeningLabel = "Listening — say it before it's gone",
   typePlaceholder = "…or type it",
   assignLabel,
+  autoStart = false,
+  seedClientId,
+  seedTitle,
 }: {
   defaultClientId?: string | undefined;
   scope?: ClientScope;
@@ -43,6 +46,10 @@ export function QuickCapture({
   listeningLabel?: string;
   typePlaceholder?: string;
   assignLabel?: string | undefined;
+  /** Opened from the persistent sidebar/mobile record control — start recording on mount. */
+  autoStart?: boolean;
+  seedClientId?: string | undefined;
+  seedTitle?: string | undefined;
 }) {
   const qc = useQueryClient();
   const [recording, setRecording] = useState(false);
@@ -136,6 +143,18 @@ export function QuickCapture({
       window.removeEventListener("lumen:start-meeting-recording", onMeetingStart);
     };
   }, [draft, recording, transcribing]);
+
+  // Opened from the sidebar/mobile record control (the centre capture card was removed
+  // from Today at Mary's request) — seed any meeting context, then roll straight away.
+  useEffect(() => {
+    if (!autoStart) return;
+    if (seedClientId) setClientId(seedClientId);
+    if (seedTitle) meetingTitleRef.current = seedTitle;
+    const t = window.setTimeout(() => {
+      if (!recording && !transcribing && !draft) void startRecording();
+    }, 150);
+    return () => window.clearTimeout(t);
+  }, [autoStart, seedClientId, seedTitle]);
 
   async function handleBlob(blob: Blob, source: IdeaSource, seconds?: number, label?: string) {
     setTranscribing(true);
