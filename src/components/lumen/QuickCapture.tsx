@@ -4,11 +4,6 @@ import { Loader2, Mic, Square, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   createIdea,
-  deleteVoiceprint,
-  enrollVoiceprint,
-  enrollVoiceprintSpeaker,
-  listContacts,
-  listVoiceprints,
   titleFromTranscript,
   transcribeAudio,
 } from "@/lib/api";
@@ -25,8 +20,6 @@ type Draft = {
   fileLabel?: string | undefined;
 };
 
-const VOICE_ENROLLMENT_PROMPT =
-  "Today I'm testing Lumen's voice memory so it can recognize me clearly in future recordings. I'm speaking at my normal pace, with my normal tone, in a quiet room. The quick brown fox jumps over the lazy dog, but honestly I'd rather talk about weekend plans, client notes, house projects, and getting useful work done without extra hassle. If Lumen hears this correctly, it should remember my voice and label me correctly next time.";
 const LOOPBACK_INPUT_NAMES = ["lumen meeting audio", "loopback"];
 
 function isPreferredMeetingInput(device: MediaDeviceInfo) {
@@ -60,7 +53,6 @@ export function QuickCapture({
   const [title, setTitle] = useState("");
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState<string[]>([]);
-  const [speakerInput, setSpeakerInput] = useState("");
   const [audioInputLabel, setAudioInputLabel] = useState("");
   const [loopbackMissing, setLoopbackMissing] = useState(false);
   const [clientId, setClientId] = useState(defaultClientId ?? "");
@@ -71,102 +63,8 @@ export function QuickCapture({
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
-  const seededForRef = useRef<string | null>(null);
   const meetingTitleRef = useRef<string | null>(null);
   const lastBlobRef = useRef<Blob | null>(null);
-  const enrollTargetRef = useRef<string | null>(null);
-
-  // Enrolled voiceprints (people Lumen already recognizes by voice)
-  const [voiceprints, setVoiceprints] = useState<string[]>([]);
-  const [vpOpen, setVpOpen] = useState(false);
-  const [vpName, setVpName] = useState("");
-  const [vpBusy, setVpBusy] = useState(false);
-  const [enrollMode, setEnrollMode] = useState(false);
-  // Unidentified diarized speakers from the last audio capture ("Speaker 2" etc.)
-  const [unidentified, setUnidentified] = useState<{ label: string; sample: string }[]>([]);
-  const [speakerNames, setSpeakerNames] = useState<Record<string, string>>({});
-  const [identifying, setIdentifying] = useState<string | null>(null);
-
-  const refreshVoiceprints = () =>
-    listVoiceprints()
-      .then((rows) => setVoiceprints(rows.map((r) => r.name)))
-      .catch(() => {});
-
-  useEffect(() => {
-    void refreshVoiceprints();
-  }, []);
-
-  async function enrollBlob(name: string, blob: Blob) {
-    setVpBusy(true);
-    try {
-      await enrollVoiceprint(name, blob);
-      toast.success(`Saved ${name}'s voice — auto-recognized in future meetings`);
-      setVpName("");
-      setVpOpen(false);
-      void refreshVoiceprints();
-    } catch {
-      toast.error("Couldn't save that voiceprint. Try a cleaner clip.");
-    } finally {
-      setVpBusy(false);
-    }
-  }
-
-  async function removeVoiceprint(name: string) {
-    try {
-      await deleteVoiceprint(name);
-      toast.success(`Forgot ${name}'s voice`);
-      void refreshVoiceprints();
-    } catch {
-      toast.error("Couldn't remove that voiceprint.");
-    }
-  }
-
-  // Enroll ONE speaker from a meeting recording — no separate clip needed.
-  async function saveMeetingSpeaker(label: string) {
-    const name = (speakerNames[label] ?? "").trim();
-    const blob = lastBlobRef.current;
-    if (!name || !blob) return;
-    const num = label.replace(/\D/g, "");
-    setIdentifying(label);
-    try {
-      await enrollVoiceprintSpeaker(name, num, blob);
-      toast.success(`Saved ${name}'s voice from this recording`);
-      setDraft((d) =>
-        d
-          ? {
-              ...d,
-              transcript: d.transcript
-                .split("\n")
-                .map((line) => (line.startsWith(`${label}:`) ? `${name}:${line.slice(label.length + 1)}` : line))
-                .join("\n"),
-            }
-          : d,
-      );
-      setUnidentified((prev) => prev.filter((u) => u.label !== label));
-      setSpeakerNames((prev) => {
-        const next = { ...prev };
-        delete next[label];
-        return next;
-      });
-      void refreshVoiceprints();
-    } catch {
-      toast.error("Couldn't save that voice. Try again with a clearer recording.");
-    } finally {
-      setIdentifying(null);
-    }
-  }
-
-  function startEnrollCapture() {
-    if (!vpName.trim()) return;
-    enrollTargetRef.current = vpName.trim();
-    setEnrollMode(true);
-    void startRecording();
-  }
-
-  function enrollUpload(file: File | undefined) {
-    if (!file || !vpName.trim()) return;
-    void enrollBlob(vpName.trim(), file);
-  }
 
   async function getMeetingAudioStream() {
     const first = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -198,30 +96,6 @@ export function QuickCapture({
   }
 
 
-  // Auto-fill the Known speakers list from the selected client's address-book
-  // contacts (frequent meeting participants) the first time that client is active.
-  useEffect(() => {
-    if (!clientId) {
-      seededForRef.current = null;
-      return;
-    }
-    if (seededForRef.current === clientId) return;
-    let cancelled = false;
-    listContacts(clientId)
-      .then((rows) => {
-        if (cancelled || seededForRef.current === clientId) return;
-        const names = [...new Set(rows.map((c) => c.name.trim()).filter(Boolean))].slice(0, 12);
-        if (names.length) {
-          setSpeakerInput(names.join(", "));
-          seededForRef.current = clientId;
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [clientId]);
-
   useEffect(() => {
     return () => {
       if (timerRef.current) window.clearInterval(timerRef.current);
@@ -244,7 +118,6 @@ export function QuickCapture({
       // Seed the capture for a specific calendar meeting, then start recording.
       if (detail.clientId) setClientId(detail.clientId);
       meetingTitleRef.current = detail.title || null;
-      seededForRef.current = null; // let speaker-list auto-fill pick up the new client
       sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       if (!recording && !transcribing && !draft) {
         window.setTimeout(() => void startRecording(), 150); // allow state to settle
@@ -266,13 +139,8 @@ export function QuickCapture({
 
   async function handleBlob(blob: Blob, source: IdeaSource, seconds?: number, label?: string) {
     setTranscribing(true);
-    setUnidentified([]);
-    setSpeakerNames({});
     try {
-      const speakers = speakerInput
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
+  const speakers: string[] = [];
       const res = await transcribeAudio(blob, speakers);
       lastBlobRef.current = source === "recorded" || source === "uploaded" ? blob : null;
       const draftNext: Draft = {
@@ -288,26 +156,6 @@ export function QuickCapture({
         meetingTitleRef.current = null;
       } else {
         setTitle(titleFromTranscript(res.transcript));
-      }
-      // Offer to name diarized speakers Lumen couldn't match (voiceprint or LLM).
-      if (res.diarizationStatus === "ok" && lastBlobRef.current) {
-        const matched = new Set(Object.keys(res.voiceprintMatches ?? {}));
-        const lines = (res.transcript ?? "").split("\n");
-        const seen: string[] = [];
-        const list: { label: string; sample: string }[] = [];
-        for (const turn of res.speakerSegments ?? []) {
-          const sp = (turn.speaker ?? "").trim();
-          if (!/^Speaker\s*\d+$/i.test(sp)) continue;
-          if (matched.has(sp)) continue;
-          if (!lines.some((l) => l.startsWith(`${sp}:`))) continue;
-          if (seen.includes(sp)) continue;
-          seen.push(sp);
-          const s = (res.segments ?? []).find(
-            (g) => g.speaker === sp && (g.text ?? "").trim(),
-          );
-          list.push({ label: sp, sample: ((s?.text ?? "").trim() || "").slice(0, 90) });
-        }
-        setUnidentified(list);
       }
     } catch {
       toast.error("That recording couldn't be transcribed. Try uploading it instead.");
@@ -327,13 +175,6 @@ export function QuickCapture({
       rec.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" });
-        const enrollName = enrollTargetRef.current;
-        if (enrollName) {
-          enrollTargetRef.current = null;
-          setEnrollMode(false);
-          void enrollBlob(enrollName, blob);
-          return;
-        }
         void handleBlob(blob, "recorded", elapsed);
       };
       recorderRef.current = rec;
@@ -383,13 +224,7 @@ export function QuickCapture({
     setClientId(defaultClientId ?? "");
     setNewClient(undefined);
     meetingTitleRef.current = null;
-    setUnidentified([]);
-    setSpeakerNames({});
     lastBlobRef.current = null;
-    enrollTargetRef.current = null;
-    setEnrollMode(false);
-    setVpName("");
-    setVpOpen(false);
   }
 
   async function save() {
@@ -494,105 +329,6 @@ export function QuickCapture({
             </button>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground" htmlFor="speaker-guide">
-              Known speakers
-            </label>
-            <input
-              id="speaker-guide"
-              value={speakerInput}
-              onChange={(e) => setSpeakerInput(e.target.value)}
-              placeholder="Mary, Josh, Daniella"
-              className="min-h-[42px] w-full rounded-lg border border-hairline bg-surface px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ember/40"
-            />
-          </div>
-
-          <div className="rounded-xl border border-hairline bg-surface p-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-medium text-muted-foreground">Voice memory — people Lumen knows by voice</p>
-              <button
-                onClick={() => {
-                  if (recording && !enrollMode) stopRecording();
-                  setVpOpen((o) => !o);
-                }}
-                className="text-xs font-medium text-ember hover:underline"
-              >
-                {vpOpen ? "Done" : "+ Enroll a voice"}
-              </button>
-            </div>
-            {voiceprints.length ? (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {voiceprints.map((n) => (
-                  <span
-                    key={n}
-                    className="inline-flex items-center gap-1 rounded-full border border-hairline bg-card px-2 py-0.5 text-[11px] text-muted-foreground"
-                  >
-                    {n}
-                    <button
-                      onClick={() => void removeVoiceprint(n)}
-                      aria-label={`Forget ${n}'s voice`}
-                      className="transition-colors hover:text-destructive"
-                    >
-                      <X className="size-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            ) : null}
-            {vpOpen ? (
-              <div className="mt-2 space-y-2 border-t border-hairline pt-2">
-                <input
-                  value={vpName}
-                  onChange={(e) => setVpName(e.target.value)}
-                  placeholder="Their name (e.g., Daniella Clark)"
-                  aria-label="Name for the voiceprint"
-                  className="min-h-[40px] w-full rounded-lg border border-hairline bg-surface px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ember/40"
-                />
-                <div className="rounded-lg border border-hairline bg-card p-3">
-                  <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                    Read this aloud
-                  </p>
-                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                    {VOICE_ENROLLMENT_PROMPT}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={() => (recording && enrollMode ? stopRecording() : startEnrollCapture())}
-                    disabled={(!vpName.trim() && !recording) || vpBusy}
-                    className="inline-flex min-h-[40px] items-center gap-2 rounded-lg bg-ember px-3 text-xs font-medium text-[oklch(0.99_0.005_85)] transition-opacity hover:opacity-90 disabled:opacity-40"
-                  >
-                    {recording && enrollMode ? (
-                      <>
-                        <Square className="size-3.5 fill-current" /> Stop & save
-                      </>
-                    ) : (
-                      <>
-                        <Mic className="size-3.5" /> Record 10–30s clip
-                      </>
-                    )}
-                  </button>
-                  <label className="inline-flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-lg border border-hairline bg-surface px-3 text-xs text-muted-foreground transition-colors hover:border-ember/40 hover:text-ember">
-                    <Upload className="size-3.5" /> Upload clip
-                    <input
-                      type="file"
-                      accept="audio/*,.m4a,.mp3,.wav"
-                      className="sr-only"
-                      onChange={(e) => {
-                        enrollUpload(e.target.files?.[0]);
-                        e.target.value = "";
-                      }}
-                    />
-                  </label>
-                  {vpBusy ? <Loader2 className="size-4 animate-spin text-muted-foreground" /> : null}
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Have the person talk alone for ~15s — Lumen will recognize them in every meeting afterwards.
-                </p>
-              </div>
-            ) : null}
-          </div>
-
           {transcribing ? (
             <div className="space-y-2 rounded-xl border border-hairline bg-surface p-4">
               <p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
@@ -636,49 +372,6 @@ export function QuickCapture({
             aria-label="Idea transcript"
             className="w-full rounded-lg border border-hairline bg-surface p-3 text-sm leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-ember/40"
           />
-
-          {unidentified.length > 0 && lastBlobRef.current && draft.source !== "typed" ? (
-            <div className="space-y-2 rounded-xl border border-ember/30 bg-ember-soft/40 p-3">
-              <p className="text-xs font-medium text-ember">New voices — name them to remember their voice</p>
-              <p className="text-[11px] leading-relaxed text-muted-foreground">
-                Type a name and save — Lumen enrolls their voiceprint from this recording, so no separate
-                enrollment clip is needed.
-              </p>
-              {unidentified.map((u) => (
-                <div key={u.label} className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full border border-hairline bg-card px-2 py-0.5 text-[11px] text-muted-foreground">
-                    {u.label}
-                  </span>
-                  {u.sample ? (
-                    <span className="max-w-[240px] truncate text-[11px] italic text-muted-foreground">
-                      “{u.sample}”
-                    </span>
-                  ) : null}
-                  <input
-                    value={speakerNames[u.label] ?? ""}
-                    onChange={(e) =>
-                      setSpeakerNames((prev) => ({ ...prev, [u.label]: e.target.value }))
-                    }
-                    placeholder="Their name (e.g., Daniella Clark)"
-                    aria-label={`Name for ${u.label}`}
-                    className="min-h-[38px] flex-1 rounded-lg border border-hairline bg-surface px-2.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ember/40"
-                  />
-                  <button
-                    onClick={() => void saveMeetingSpeaker(u.label)}
-                    disabled={!(speakerNames[u.label] ?? "").trim() || identifying === u.label}
-                    className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg bg-ember px-3 text-xs font-medium text-[oklch(0.99_0.005_85)] transition-opacity hover:opacity-90 disabled:opacity-40"
-                  >
-                    {identifying === u.label ? (
-                      <Loader2 className="size-3.5 animate-spin" />
-                    ) : (
-                      <Mic className="size-3.5" />
-                    )}
-                    Save voice
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : null}
 
           <div className="flex flex-wrap items-center gap-2">
             {tags.map((t) => (
