@@ -35,7 +35,7 @@ function NotFoundComponent() {
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <Link
-            to="/"
+            to="/today"
             className="rounded-lg bg-ember px-3.5 py-2 text-sm font-medium text-[oklch(0.99_0.005_85)] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           >
             Back to Today
