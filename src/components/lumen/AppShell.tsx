@@ -46,9 +46,10 @@ import { MobileTabBar } from "./MobileTabBar";
 import { InstallHint } from "./InstallHint";
 
 const nav = [
+  // Mary: desktop leads with the To-do list — it's where she works from 90% of the time.
+  { to: "/actions", label: "To-do list", icon: CheckSquare, exact: false },
   { to: "/", label: "Today", icon: CalendarDays, exact: true },
   { to: "/notes", label: "All Notes", icon: FileText, exact: false },
-  { to: "/actions", label: "To-do list", icon: CheckSquare, exact: false },
   { to: "/clients", label: "Clients", icon: Users, exact: false },
   { to: "/ideas", label: "Ideas", icon: Lightbulb, exact: false },
   { to: "/money", label: "Money", icon: Wallet, exact: false },
