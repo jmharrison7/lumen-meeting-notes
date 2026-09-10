@@ -140,7 +140,7 @@ export function FilesPanel({ clientId }: { clientId: string }) {
   const refresh = () => void qc.invalidateQueries({ queryKey: ["client-files", clientId] });
 
   const upload = useMutation({
-    mutationFn: (f: File) => registerUpload(clientId, { name: f.name, size: f.size, mime: f.type }),
+    mutationFn: (f: File) => registerUpload(clientId, f),
     onSuccess: (f) => {
       refresh();
       toast.success(`${f.name} added`);

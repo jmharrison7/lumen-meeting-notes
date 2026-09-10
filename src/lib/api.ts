@@ -440,29 +440,32 @@ export async function addDriveLink(
   return clone(file);
 }
 
-export async function registerUpload(
-  clientId: string,
-  input: { name: string; size: number; mime: string },
-): Promise<ClientFile> {
-  if (BASE)
-    return http<ClientFile>(`/clients/${clientId}/files/upload`, {
-      method: "POST",
-      body: JSON.stringify(input),
-    });
+export async function registerUpload(clientId: string, file: File): Promise<ClientFile> {
+  if (BASE) {
+    // Send the REAL bytes as multipart. This previously posted JSON metadata only, so the
+    // server never received the file: it fell back to its default filename and stored the
+    // JSON text as the file body — every upload appeared as "upload.bin" with no content.
+    const form = new FormData();
+    form.append("file", file, file.name); // filename travels in the multipart header
+    return http<ClientFile>(
+      `/clients/${clientId}/files/upload?name=${encodeURIComponent(file.name)}`,
+      { method: "POST", body: form, headers: {} },
+    );
+  }
   await delay(500);
-  const file: ClientFile = {
+  const out: ClientFile = {
     id: `f-${Date.now()}-${Math.round(Math.random() * 1000)}`,
     clientId,
     kind: "file",
-    name: input.name,
+    name: file.name,
     source: "upload",
-    mime: input.mime,
-    sizeBytes: input.size,
+    mime: file.type,
+    sizeBytes: file.size,
     tags: [],
     createdAtISO: new Date().toISOString(),
   };
-  clientFiles.unshift(file);
-  return clone(file);
+  clientFiles.unshift(out);
+  return clone(out);
 }
 
 export async function updateClientFile(
