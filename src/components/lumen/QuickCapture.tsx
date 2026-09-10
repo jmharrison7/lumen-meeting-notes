@@ -65,6 +65,9 @@ export function QuickCapture({
   const [clientId, setClientId] = useState(defaultClientId ?? "");
   const [newClient, setNewClient] = useState<{ name: string; note?: string } | undefined>(undefined);
   const [saving, setSaving] = useState(false);
+  /** Multi-file uploads: transcribe one at a time so each note keeps its own title/client/tags. */
+  const [queue, setQueue] = useState<{ file: File; label: string }[]>([]);
+  const [queuePos, setQueuePos] = useState(0);
 
   const sectionRef = useRef<HTMLElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -221,6 +224,28 @@ export function QuickCapture({
     void handleBlob(file, "uploaded", undefined, `${file.name} · ${size}`);
   }
 
+  /**
+   * Multi-select upload. The picker used to take only `files[0]`, so choosing several notes
+   * silently discarded all but the first. Now the extra files are queued and transcribed one
+   * at a time, and each still lands in the draft for review before it saves.
+   */
+  function onFiles(files: FileList | null) {
+    if (!files || !files.length) return;
+    const items = Array.from(files).map((f) => ({
+      file: f,
+      label: `${f.name} · ${(f.size / 1024 / 1024).toFixed(1)} MB`,
+    }));
+    if (items.length === 1) {
+      const only = items[0];
+      if (only) onFile(only.file);
+      return;
+    }
+    setQueue(items);
+    setQueuePos(0);
+    const first = items[0];
+    if (first) void handleBlob(first.file, "uploaded", undefined, first.label);
+  }
+
   function startTyped() {
     if (!typed.trim()) return;
     setDraft({ transcript: typed.trim(), source: "typed" });
@@ -261,8 +286,20 @@ export function QuickCapture({
       });
       await qc.invalidateQueries({ queryKey: ["ideas"] });
       await qc.invalidateQueries({ queryKey: ["clients"] });
-      toast.success("Caught it.");
-      reset();
+      const next = queuePos + 1;
+      const queued = queue[next];
+      if (queued) {
+        setQueuePos(next);
+        reset();
+        toast.success(`Saved ${next} of ${queue.length} — loading the next one.`);
+        void handleBlob(queued.file, "uploaded", undefined, queued.label);
+      } else {
+        const total = queue.length;
+        setQueue([]);
+        setQueuePos(0);
+        toast.success(total > 1 ? `All ${total} notes saved.` : "Caught it.");
+        reset();
+      }
     } catch {
       toast.error("That idea didn't save. Try once more.");
     } finally {
@@ -318,11 +355,20 @@ export function QuickCapture({
               <Upload className="size-4" /> Upload voice memo
               <input
                 type="file"
+                multiple
                 accept="audio/*,.m4a,.mp3,.wav"
                 className="sr-only"
-                onChange={(e) => onFile(e.target.files?.[0])}
+                onChange={(e) => {
+                  onFiles(e.target.files);
+                  e.target.value = "";
+                }}
               />
             </label>
+            {queue.length > 1 ? (
+              <span className="text-xs tabular-nums text-muted-foreground">
+                Note {queuePos + 1} of {queue.length}
+              </span>
+            ) : null}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
