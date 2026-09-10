@@ -8,6 +8,7 @@ import { NoteRow } from "@/components/lumen/NoteRow";
 import { useUi } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import { useAccess } from "@/lib/access-store";
+import { useScope } from "@/lib/scope-store";
 
 export const Route = createFileRoute("/notes/")({
   head: () => ({
@@ -37,6 +38,7 @@ function NotesPage() {
   const { hiddenNotes, hideNotes, applyItem } = useUi();
   const qc = useQueryClient();
   const { canSeeClient, canEdit } = useAccess();
+  const { scope } = useScope();
   const notes = useQuery({ queryKey: ["notes"], queryFn: listNotes });
   const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
 
@@ -53,7 +55,8 @@ function NotesPage() {
   );
 
   const rows = useMemo(() => {
-    let list = (notes.data ?? []).filter((n) => !hiddenNotes.includes(n.id) && canSeeClient(n.clientId));
+    const scopedClientIds = new Set((clients.data ?? []).filter((c) => (c.scope ?? "work") === scope).map((c) => c.id));
+    let list = (notes.data ?? []).filter((n) => !hiddenNotes.includes(n.id) && canSeeClient(n.clientId) && scopedClientIds.has(n.clientId));
     if (clientFilter !== "all") list = list.filter((n) => n.clientId === clientFilter);
     if (tagFilter !== "all") list = list.filter((n) => n.tags.includes(tagFilter));
     if (onlyActions)
@@ -69,7 +72,7 @@ function NotesPage() {
           ? a.date.localeCompare(b.date)
           : b.date.localeCompare(a.date),
     );
-  }, [notes.data, hiddenNotes, clientFilter, tagFilter, onlyActions, q, sort, applyItem]);
+  }, [notes.data, clients.data, hiddenNotes, clientFilter, tagFilter, onlyActions, q, sort, applyItem, canSeeClient, scope]);
 
   const clientOf = (id: string) => clients.data?.find((c) => c.id === id);
 
@@ -86,7 +89,7 @@ function NotesPage() {
         <div>
           <h1 className="text-title text-3xl font-semibold tracking-tight">All notes</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            {rows.length} write-up{rows.length === 1 ? "" : "s"} in your studio archive.
+            {rows.length} write-up{rows.length === 1 ? "" : "s"} in {scope === "personal" ? "personal planning" : "your studio archive"}.
           </p>
         </div>
         <div className="relative w-full sm:w-72">
@@ -103,8 +106,8 @@ function NotesPage() {
 
       <div className="flex flex-wrap items-center gap-2">
         <Select value={clientFilter} onChange={setClientFilter}>
-          <option value="all">All clients</option>
-          {(clients.data ?? []).map((c) => (
+          <option value="all">{scope === "personal" ? "All areas" : "All clients"}</option>
+          {(clients.data ?? []).filter((c) => (c.scope ?? "work") === scope).map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>

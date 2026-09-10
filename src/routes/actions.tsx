@@ -14,6 +14,7 @@ import {
 } from "@/components/lumen/primitives";
 import { useUi } from "@/lib/ui-store";
 import { useAccess } from "@/lib/access-store";
+import { useScope } from "@/lib/scope-store";
 import { cn } from "@/lib/utils";
 import type { ActionItem } from "@/lib/types";
 
@@ -46,14 +47,18 @@ const groups = [
 function ActionsPage() {
   const { applyItem, patchItem } = useUi();
   const { canSeeClient, canEdit } = useAccess();
+  const { scope } = useScope();
   const items = useQuery({ queryKey: ["actionItems"], queryFn: listActionItems });
   const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
   const [clientFilter, setClientFilter] = useState("all");
   const [ownerFilter, setOwnerFilter] = useState("all");
 
   const all = useMemo(
-    () => (items.data ?? []).map(applyItem).filter((a) => canSeeClient(a.clientId)),
-    [items.data, applyItem, canSeeClient],
+    () => {
+      const scopedClientIds = new Set((clients.data ?? []).filter((c) => (c.scope ?? "work") === scope).map((c) => c.id));
+      return (items.data ?? []).map(applyItem).filter((a) => canSeeClient(a.clientId) && scopedClientIds.has(a.clientId));
+    },
+    [items.data, clients.data, applyItem, canSeeClient, scope],
   );
   const owners = useMemo(() => [...new Set(all.map((a) => a.owner))].sort(), [all]);
 
@@ -78,7 +83,7 @@ function ActionsPage() {
       <header>
         <h1 className="text-title text-3xl font-semibold tracking-tight">Action items</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          {filtered.filter((a) => !a.done).length} open across your clients.
+          {filtered.filter((a) => !a.done).length} open across {scope === "personal" ? "personal areas" : "your clients"}.
         </p>
       </header>
 
@@ -88,8 +93,8 @@ function ActionsPage() {
           onChange={(e) => setClientFilter(e.target.value)}
           className="h-9 rounded-lg border border-hairline bg-card px-2.5 text-sm outline-none focus:ring-2 focus:ring-ring/30"
         >
-          <option value="all">All clients</option>
-          {(clients.data ?? []).map((c) => (
+          <option value="all">{scope === "personal" ? "All areas" : "All clients"}</option>
+          {(clients.data ?? []).filter((c) => (c.scope ?? "work") === scope).map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>

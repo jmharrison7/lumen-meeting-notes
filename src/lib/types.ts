@@ -1,9 +1,14 @@
 export type TagColor = "ember" | "forest" | "plum" | "ocean" | "sand" | "slate";
 
+export type ClientStatus = "active" | "archived" | "potential";
+export type ClientScope = "work" | "personal";
+
 export interface Client {
   id: string;
   name: string;
   tagColor: TagColor;
+  status?: ClientStatus | undefined;
+  scope?: ClientScope | undefined;
   meetingsThisMonth?: number | undefined;
   note?: string | undefined;
   lastMeetingAt?: string | undefined;
@@ -66,6 +71,11 @@ export interface CalendarEvent {
   start: string;
   end: string;
   platform: Platform;
+  dayKey?: string | undefined;
+  joinUrl?: string | undefined;
+  location?: string | undefined;
+  description?: string | undefined;
+  attendees?: { name: string; email: string }[] | undefined;
 }
 
 export interface LiveSegment {
@@ -194,6 +204,8 @@ export interface ShareResult {
 
 export type IdeaSource = "recorded" | "uploaded" | "typed";
 
+export type IdeaStatus = "accepted" | "pending";
+
 export interface Idea {
   id: string;
   title: string;
@@ -205,6 +217,8 @@ export interface Idea {
   createdAtISO: string;
   convertedToNoteId?: string | undefined;
   suggestionDismissed?: boolean | undefined;
+  status?: IdeaStatus | undefined;
+  submittedByName?: string | undefined;
 }
 
 export interface BrandDNA {
@@ -218,7 +232,7 @@ export interface BrandDNA {
 
 /* ------------------------------ Sharing & access ------------------------------ */
 
-export type CollaboratorRole = "viewer" | "editor";
+export type CollaboratorRole = "viewer" | "contributor" | "editor";
 
 export interface Collaborator {
   id: string;

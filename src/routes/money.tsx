@@ -1,22 +1,33 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
   ChevronDown,
   Home,
+  Loader2,
   Paperclip,
   Pencil,
   Receipt,
   Search,
   Trash2,
+  Upload,
   Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
-import { deleteMoneyExpense, listClients, listMoneyExpenses, listMoneyYears } from "@/lib/api";
+import {
+  analyzeReceipt,
+  deleteMoneyExpense,
+  listClients,
+  listMoneyExpenses,
+  listMoneyYears,
+} from "@/lib/api";
+import type { ReceiptAnalysis } from "@/lib/api";
 import { CATEGORIES, ExpenseDialog } from "@/components/lumen/ExpenseDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { useAccess } from "@/lib/access-store";
+import { useScope } from "@/lib/scope-store";
 import type { ExpenseCategory, MoneyExpense } from "@/lib/types";
 
 export const Route = createFileRoute("/money")({
@@ -61,15 +72,49 @@ function MoneyPage() {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
   const [tab, setTab] = useState<Tab>("Overview");
+  const { scope, setScope } = useScope();
+  const { isOwner } = useAccess();
 
-  const years = useQuery({ queryKey: ["money", "years"], queryFn: listMoneyYears });
+  const years = useQuery({ queryKey: ["money", "years"], queryFn: listMoneyYears, enabled: isOwner && scope === "work" });
   const expenses = useQuery({
     queryKey: ["money", "expenses", year],
     queryFn: () => listMoneyExpenses(year),
+    enabled: isOwner && scope === "work",
   });
 
   const rows = expenses.data ?? [];
   const total = rows.reduce((s, r) => s + r.amount, 0);
+
+  if (!isOwner) {
+    return (
+      <div className="mx-auto max-w-md rounded-2xl border border-hairline bg-card p-8 text-center">
+        <Wallet className="mx-auto size-8 text-muted-foreground" />
+        <h1 className="text-title mt-3 text-xl font-semibold">Money is private</h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          Expenses, receipts and tax-year totals are only available to Mary.
+        </p>
+      </div>
+    );
+  }
+
+  if (scope === "personal") {
+    return (
+      <div className="mx-auto max-w-md rounded-2xl border border-hairline bg-card p-8 text-center">
+        <Wallet className="mx-auto size-8 text-muted-foreground" />
+        <h1 className="text-title mt-3 text-xl font-semibold">Money lives in Work</h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          Expenses, receipts and tax-year totals are part of the studio workspace — switch over
+          to Work to see them.
+        </p>
+        <button
+          onClick={() => setScope("work")}
+          className="mt-4 inline-flex min-h-[42px] items-center gap-2 rounded-lg bg-ember px-4 text-sm font-medium text-[oklch(0.99_0.005_85)] transition-opacity hover:opacity-90"
+        >
+          <Home className="size-4" /> Switch to Work
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -281,10 +326,29 @@ function Expenses({
   const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<ExpenseCategory | "all">("all");
-  const [dialog, setDialog] = useState<{ open: boolean; expense?: MoneyExpense | undefined }>({
-    open: false,
-  });
+  const [dialog, setDialog] = useState<{
+    open: boolean;
+    expense?: MoneyExpense | undefined;
+    prefill?: ReceiptAnalysis | undefined;
+  }>({ open: false });
   const [confirm, setConfirm] = useState<string | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const receiptFileRef = useRef<HTMLInputElement>(null);
+
+  async function handleReceiptFile(file: File | undefined) {
+    if (!file || analyzing) return;
+    setAnalyzing(true);
+    try {
+      const parsed = await analyzeReceipt(file);
+      setDialog({ open: true, prefill: { ...parsed, receiptName: file.name } });
+      toast.success("Receipt read — check the fields, then log it.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't read that receipt.");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
 
   const filtered = rows.filter((r) => {
     const okCat = cat === "all" || r.category === cat;
@@ -329,6 +393,53 @@ function Expenses({
         >
           Log expense
         </button>
+      </div>
+
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          void handleReceiptFile(e.dataTransfer.files?.[0]);
+        }}
+        onClick={() => receiptFileRef.current?.click()}
+        role="button"
+        aria-label="Upload a receipt to auto-fill an expense"
+        className={cn(
+          "flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed px-4 py-6 text-center transition-colors",
+          dragOver ? "border-ember/70 bg-ember/10" : "border-hairline bg-surface hover:border-ember/40",
+        )}
+      >
+        {analyzing ? (
+          <>
+            <Loader2 className="size-5 animate-spin text-ember" aria-hidden />
+            <span className="text-sm">Reading the receipt…</span>
+          </>
+        ) : (
+          <>
+            <Upload className={cn("size-5", dragOver ? "text-ember" : "text-muted-foreground")} aria-hidden />
+            <span className="text-sm">
+              Drop a receipt here, or <span className="text-ember">browse</span> — photo or PDF
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              Lumen reads it and fills in vendor, amount, date &amp; category.
+            </span>
+          </>
+        )}
+        <input
+          ref={receiptFileRef}
+          type="file"
+          accept="image/*,application/pdf,.pdf"
+          className="sr-only"
+          onChange={(e) => {
+            void handleReceiptFile(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -455,6 +566,7 @@ function Expenses({
         open={dialog.open}
         onOpenChange={(v) => setDialog({ open: v })}
         expense={dialog.expense}
+        prefill={dialog.prefill}
         defaultYear={year}
       />
     </div>

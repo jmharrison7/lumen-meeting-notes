@@ -107,11 +107,12 @@ function CollaboratorsPage() {
                   }
                   className={cn(
                     "h-9 rounded-full border border-hairline bg-background px-2 text-xs",
-                    c.role === "editor" ? "text-ember" : "text-muted-foreground",
+                    c.role === "editor" ? "text-ember" : c.role === "contributor" ? "text-foreground" : "text-muted-foreground",
                   )}
                 >
-                  <option value="editor">Editor</option>
                   <option value="viewer">Viewer</option>
+                  <option value="contributor">Contributor</option>
+                  <option value="editor">Editor</option>
                 </select>
                 <button
                   onClick={() => {
@@ -134,7 +135,7 @@ function CollaboratorsPage() {
                       params={{ clientId: id }}
                       className="rounded-full border border-hairline px-2.5 py-1 text-xs transition-colors hover:border-ember/40 hover:text-ember"
                     >
-                      {nameOf(id)} · {c.role === "editor" ? "Editor" : "Viewer"}
+                      {nameOf(id)} · {c.role === "editor" ? "Editor" : c.role === "contributor" ? "Contributor" : "Viewer"}
                     </Link>
                   ))
                 )}

@@ -6,6 +6,7 @@ import { EmptyState, ErrorState, ListSkeleton, SectionTitle } from "@/components
 import { IdeasGrid } from "@/components/lumen/IdeasGrid";
 import { QuickCapture } from "@/components/lumen/QuickCapture";
 import { useAccess } from "@/lib/access-store";
+import { useScope } from "@/lib/scope-store";
 
 export const Route = createFileRoute("/ideas/")({
   head: () => ({
@@ -35,17 +36,23 @@ function IdeasPage() {
   const [client, setClient] = useState("all");
   const [tag, setTag] = useState("all");
 
-  const { canSeeClient, isOwner } = useAccess();
+  const { canSeeClient, canContribute, isOwner } = useAccess();
+  const { scope } = useScope();
+  const scopedClients = (clients.data ?? []).filter((c) => (c.scope ?? "work") === scope);
+  const scopedClientIds = new Set(scopedClients.map((c) => c.id));
   const all = (ideas.data ?? []).filter((i) =>
-    i.clientId ? canSeeClient(i.clientId) : isOwner,
+    i.clientId ? canSeeClient(i.clientId) && scopedClientIds.has(i.clientId) : isOwner && scope === "work",
   );
+  const pending = all.filter((i) => (i.status ?? "accepted") === "pending");
+  const accepted = all.filter((i) => (i.status ?? "accepted") !== "pending");
   const allTags = useMemo(
     () => Array.from(new Set(all.flatMap((i) => i.tags))).sort(),
     [all],
   );
 
-  const filtered = all.filter((i) => {
-    if (client === "personal" ? i.clientId : client !== "all" && i.clientId !== client) return false;
+  const filtered = accepted.filter((i) => {
+    if (client === "personal" && i.clientId) return false;
+    if (client !== "all" && client !== "personal" && i.clientId !== client) return false;
     if (tag !== "all" && !i.tags.includes(tag)) return false;
     const needle = q.trim().toLowerCase();
     if (needle && !`${i.title} ${i.transcript}`.toLowerCase().includes(needle)) return false;
@@ -61,7 +68,14 @@ function IdeasPage() {
         </p>
       </header>
 
-      <QuickCapture />
+      {canContribute ? <QuickCapture /> : null}
+
+      {isOwner && pending.length ? (
+        <section className="space-y-3">
+          <SectionTitle>Pending submissions</SectionTitle>
+          <IdeasGrid ideas={pending} clients={clients.data ?? []} mode="review" />
+        </section>
+      ) : null}
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -81,9 +95,9 @@ function IdeasPage() {
               aria-label="Filter by client"
               className="min-h-[38px] rounded-lg border border-hairline bg-card px-2.5 text-xs"
             >
-              <option value="all">All clients</option>
-              <option value="personal">Personal</option>
-              {(clients.data ?? []).map((c) => (
+              <option value="all">{scope === "personal" ? "All areas" : "All clients"}</option>
+              {scope === "work" ? <option value="personal">Personal / General</option> : null}
+              {scopedClients.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>

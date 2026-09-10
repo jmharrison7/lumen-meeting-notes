@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { listClients } from "@/lib/api";
+import type { ClientScope } from "@/lib/types";
 
 export type ClientChoice = {
   clientId?: string | undefined;
@@ -16,12 +17,14 @@ export function ClientSelect({
   newClient,
   onChange,
   label = "Assign to a client",
+  scope,
   className = "",
 }: {
   value: string;
   newClient?: { name: string; note?: string } | undefined;
   onChange: (choice: ClientChoice) => void;
   label?: string;
+  scope?: ClientScope | undefined;
   className?: string;
 }) {
   const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
@@ -32,15 +35,15 @@ export function ClientSelect({
   if (creating || newClient) {
     return (
       <div className="w-full space-y-2 rounded-lg border border-hairline bg-surface p-3">
-        <p className="text-xs font-medium">New client</p>
+        <p className="text-xs font-medium">New {scope === "personal" ? "area" : "client"}</p>
         <input
           value={name}
           onChange={(e) => {
             setName(e.target.value);
             onChange({ newClient: { name: e.target.value, note } });
           }}
-          placeholder="Client name"
-          aria-label="New client name"
+          placeholder={scope === "personal" ? "Area name" : "Client name"}
+          aria-label={scope === "personal" ? "New area name" : "New client name"}
           autoFocus
           className="min-h-[38px] w-full rounded-lg border border-hairline bg-card px-2.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ember/40"
         />
@@ -83,13 +86,13 @@ export function ClientSelect({
       aria-label={label}
       className={`min-h-[38px] rounded-lg border border-hairline bg-surface px-2.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ember/40 ${className}`}
     >
-      <option value="">Personal / General</option>
-      {(clients.data ?? []).map((c) => (
+      <option value="">{scope === "personal" ? "Personal / General" : "Unassigned"}</option>
+      {(clients.data ?? []).filter((c) => !scope || (c.scope ?? "work") === scope).map((c) => (
         <option key={c.id} value={c.id}>
           {c.name}
         </option>
       ))}
-      <option value="__new">＋ New client…</option>
+      <option value="__new">＋ New {scope === "personal" ? "area" : "client"}…</option>
     </select>
   );
 }

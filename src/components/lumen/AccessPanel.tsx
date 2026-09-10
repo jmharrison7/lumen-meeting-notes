@@ -25,7 +25,7 @@ export function AccessPanel({ clientId, clientName }: { clientId: string; client
   const invitee = person[0];
   const email = invitee?.email ?? "";
   const name = invitee?.name ?? "";
-  const [role, setRole] = useState<CollaboratorRole>("editor");
+  const [role, setRole] = useState<CollaboratorRole>("viewer");
   const [error, setError] = useState("");
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["collaborators"] });
@@ -44,7 +44,7 @@ export function AccessPanel({ clientId, clientName }: { clientId: string; client
       });
       void qc.invalidateQueries({ queryKey: ["contacts"] });
       setPerson([]);
-      setRole("editor");
+      setRole("viewer");
       setOpen(false);
       toast.success(`Invite sent to ${p.email} — added to contacts from invite`);
     },
@@ -112,8 +112,9 @@ export function AccessPanel({ clientId, clientName }: { clientId: string; client
               aria-label="Collaborator role"
               className="mt-1 h-11 w-full rounded-lg border border-hairline bg-background px-2 text-sm text-foreground"
             >
-              <option value="editor">Editor</option>
               <option value="viewer">Viewer</option>
+              <option value="contributor">Contributor</option>
+              <option value="editor">Editor</option>
             </select>
           </label>
           <button
@@ -163,11 +164,12 @@ export function AccessPanel({ clientId, clientName }: { clientId: string; client
                 }
                 className={cn(
                   "h-9 rounded-full border border-hairline bg-background px-2 text-xs",
-                  c.role === "editor" ? "text-ember" : "text-muted-foreground",
+                  c.role === "editor" ? "text-ember" : c.role === "contributor" ? "text-foreground" : "text-muted-foreground",
                 )}
               >
-                <option value="editor">Editor</option>
                 <option value="viewer">Viewer</option>
+                <option value="contributor">Contributor</option>
+                <option value="editor">Editor</option>
               </select>
               <button
                 onClick={() => remove.mutate(c.id)}

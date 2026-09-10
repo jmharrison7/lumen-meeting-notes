@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
+import { Check, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { deleteIdea } from "@/lib/api";
+import { deleteIdea, updateIdea } from "@/lib/api";
 import { fullDate, relativeDate } from "@/lib/format";
 import type { Client, Idea } from "@/lib/types";
 import { ClientChip } from "@/components/lumen/primitives";
@@ -12,10 +12,12 @@ export function IdeasGrid({
   ideas,
   clients,
   showClient = true,
+  mode = "normal",
 }: {
   ideas: Idea[];
   clients: Client[];
   showClient?: boolean;
+  mode?: "normal" | "review";
 }) {
   const qc = useQueryClient();
 
@@ -23,6 +25,13 @@ export function IdeasGrid({
     await deleteIdea(id);
     await qc.invalidateQueries({ queryKey: ["ideas"] });
     toast.success("Idea deleted.");
+  }
+
+  async function approve(id: string) {
+    await updateIdea(id, { status: "accepted" });
+    await qc.invalidateQueries({ queryKey: ["ideas"] });
+    await qc.invalidateQueries({ queryKey: ["actionItems"] });
+    toast.success("Submission accepted.");
   }
 
   return (
@@ -42,14 +51,28 @@ export function IdeasGrid({
               >
                 {i.title}
               </Link>
+              {mode === "review" ? (
+                <button
+                  onClick={() => void approve(i.id)}
+                  aria-label={`Accept submission ${i.title}`}
+                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-ember-soft hover:text-ember"
+                >
+                  <Check className="size-4" />
+                </button>
+              ) : null}
               <button
                 onClick={() => void remove(i.id)}
-                aria-label={`Delete idea ${i.title}`}
+                aria-label={mode === "review" ? `Decline submission ${i.title}` : `Delete idea ${i.title}`}
                 className="rounded-md p-1.5 text-muted-foreground opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
               >
                 <Trash2 className="size-4" />
               </button>
             </div>
+            {mode === "review" ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Submitted by {i.submittedByName ?? "collaborator"}
+              </p>
+            ) : null}
             <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted-foreground">
               {i.transcript}
             </p>

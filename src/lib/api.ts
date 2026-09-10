@@ -2,11 +2,11 @@ import { actionItems, calendar, clientsWithStats, notes } from "./mock-data";
 import type { ActionItem, CalendarEvent, Client, Note, TagColor } from "./types";
 
 /**
- * Thin client layer. When VITE_API_URL is set, every function talks HTTP.
- * Otherwise it resolves from mock data after a short simulated delay so the
- * loading skeletons stay honest. Swapping to the real backend is a one-file change.
+ * Thin client layer. Production always talks HTTP; local/dev builds can omit
+ * VITE_API_URL to use mock data while the loading skeletons stay honest.
  */
-const BASE = import.meta.env["VITE_API_URL"] as string | undefined;
+const configuredBase = import.meta.env["VITE_API_URL"] as string | undefined;
+const BASE = configuredBase || (import.meta.env.PROD ? "/api" : undefined);
 
 const delay = (ms = 320 + Math.random() * 160) => new Promise((r) => setTimeout(r, ms));
 
@@ -63,6 +63,12 @@ export async function listActionItems(): Promise<ActionItem[]> {
 
 export async function listTodayEvents(): Promise<CalendarEvent[]> {
   if (BASE) return http<CalendarEvent[]>("/calendar/today");
+  await delay(260);
+  return clone(calendar);
+}
+
+export async function listUpcomingEvents(days = 3): Promise<CalendarEvent[]> {
+  if (BASE) return http<CalendarEvent[]>(`/calendar/upcoming?days=${days}`);
   await delay(260);
   return clone(calendar);
 }
@@ -851,7 +857,7 @@ export async function getIdea(id: string): Promise<Idea | null> {
 export async function createIdea(
   input: Omit<Idea, "id" | "createdAtISO"> & {
     createdAtISO?: string;
-    createClient?: { name: string; note?: string };
+    createClient?: { name: string; note?: string; scope?: Client["scope"] };
   },
 ): Promise<Idea> {
   if (BASE) return http<Idea>("/ideas", { method: "POST", body: JSON.stringify(input) });
@@ -896,16 +902,93 @@ export async function deleteIdea(id: string): Promise<void> {
 
 export async function transcribeAudio(
   file: File | Blob,
-): Promise<{ transcript: string; durationSeconds?: number }> {
+  speakers: string[] = [],
+): Promise<{
+  transcript: string;
+  durationSeconds?: number;
+  speakerLabels?: string[];
+  diarizationStatus?: string;
+  voiceprintMatches?: Record<string, string>;
+  speakerSegments?: { start: number; end: number; speaker: string }[];
+  segments?: { start: number; end: number; text: string; speaker?: string | undefined }[];
+}> {
   if (BASE) {
     const form = new FormData();
     form.append("audio", file, file instanceof File ? file.name : "recording.webm");
+    if (speakers.length) form.append("speakers", JSON.stringify(speakers));
     const res = await fetch(`${BASE}/transcribe`, { method: "POST", body: form });
     if (!res.ok) throw new Error(`Transcription failed: ${res.status}`);
-    return (await res.json()) as { transcript: string; durationSeconds?: number };
+    return (await res.json()) as {
+      transcript: string;
+      durationSeconds?: number;
+      speakerLabels?: string[];
+      diarizationStatus?: string;
+      voiceprintMatches?: Record<string, string>;
+      speakerSegments?: { start: number; end: number; speaker: string }[];
+      segments?: { start: number; end: number; text: string; speaker?: string | undefined }[];
+    };
   }
   await delay(1200);
   return nextMockTranscript();
+}
+
+export interface VoiceprintInfo {
+  name: string;
+  updatedAt?: string | undefined;
+}
+
+export async function listVoiceprints(): Promise<VoiceprintInfo[]> {
+  if (BASE) {
+    const r = await http<{ voiceprints: VoiceprintInfo[] }>("/voiceprints");
+    return r.voiceprints ?? [];
+  }
+  await delay(150);
+  return [];
+}
+
+async function voiceprintForm(name: string, file: File | Blob, extra: Record<string, string> = {}) {
+  const fd = new FormData();
+  fd.append("audio", file, file instanceof File ? file.name : "clip.webm");
+  fd.append("name", name);
+  for (const [k, v] of Object.entries(extra)) fd.append(k, v);
+  return fd;
+}
+
+export async function enrollVoiceprint(name: string, file: File | Blob): Promise<void> {
+  if (BASE) {
+    const res = await fetch(`${BASE}/voiceprints/enroll`, {
+      method: "POST",
+      body: await voiceprintForm(name, file),
+    });
+    if (!res.ok) throw new Error(`Voiceprint enroll failed: ${res.status}`);
+    return;
+  }
+  await delay(400);
+}
+
+/** Enroll ONE speaker from a meeting recording (diarized cluster) — no separate clip needed. */
+export async function enrollVoiceprintSpeaker(
+  name: string,
+  speaker: string,
+  file: File | Blob,
+): Promise<void> {
+  if (BASE) {
+    const res = await fetch(`${BASE}/voiceprints/enroll-cluster`, {
+      method: "POST",
+      body: await voiceprintForm(name, file, { speaker }),
+    });
+    if (!res.ok) throw new Error(`Voiceprint cluster enroll failed: ${res.status}`);
+    return;
+  }
+  await delay(400);
+}
+
+export async function deleteVoiceprint(name: string): Promise<void> {
+  if (BASE) {
+    await http<void>(`/voiceprints?name=${encodeURIComponent(name)}`, { method: "DELETE" });
+    return;
+  }
+  await delay(150);
 }
 
 export function titleFromTranscript(transcript: string) {
@@ -967,7 +1050,7 @@ function persistCustomClients() {
   window.localStorage.setItem(CUSTOM_CLIENTS_KEY, JSON.stringify(customClients));
 }
 
-export async function createClient(input: { name: string; note?: string }): Promise<Client> {
+export async function createClient(input: { name: string; note?: string; scope?: Client["scope"] }): Promise<Client> {
   if (BASE) return http<Client>("/clients", { method: "POST", body: JSON.stringify(input) });
   await delay(280);
   const list = ensureCustomClients();
@@ -977,6 +1060,7 @@ export async function createClient(input: { name: string; note?: string }): Prom
     name: input.name.trim(),
     tagColor: palette[(clientsWithStats().length + list.length) % palette.length] as TagColor,
     meetingsThisMonth: 0,
+    scope: input.scope ?? "work",
     ...(input.note?.trim() ? { note: input.note.trim() } : {}),
   };
   list.push(client);
@@ -1254,7 +1338,7 @@ export function dismissSuggestion(name: string) {
 
 export async function listContacts(clientId?: string): Promise<Contact[]> {
   if (BASE)
-    return http<Contact[]>(`/contacts${clientId ? `?client=${encodeURIComponent(clientId)}` : ""}`);
+    return http<Contact[]>(`/contacts${clientId ? `?clientId=${encodeURIComponent(clientId)}` : ""}`);
   await delay(150);
   const rows = ensureContacts();
   const filtered = clientId ? rows.filter((c) => c.clientId === clientId) : rows;
@@ -1264,7 +1348,7 @@ export async function listContacts(clientId?: string): Promise<Contact[]> {
 export async function searchContacts(q: string, clientId?: string): Promise<Contact[]> {
   if (BASE)
     return http<Contact[]>(
-      `/contacts/search?q=${encodeURIComponent(q)}${clientId ? `&client=${encodeURIComponent(clientId)}` : ""}`,
+      `/contacts/search?q=${encodeURIComponent(q)}${clientId ? `&clientId=${encodeURIComponent(clientId)}` : ""}`,
     );
   await delay(150);
   const needle = q.trim().toLowerCase();
@@ -1381,10 +1465,12 @@ export interface AuthUser {
   id: string;
   name: string;
   email: string;
+  role?: "owner" | "collaborator" | "viewer" | "contributor" | "editor";
+  status?: "active" | "invited";
 }
 
 export type WhoAmI =
-  | { authenticated: true; user: AuthUser; grants: string[] }
+  | { authenticated: true; user: AuthUser; grants: { clientId: string; access: CollaboratorRole }[] }
   | { authenticated: false };
 
 let mockSignedOut = false;
@@ -1428,7 +1514,7 @@ export async function signOut(): Promise<void> {
 /* ----------------------------------- Money ----------------------------------- */
 
 import { seedExpenses } from "./money-mock";
-import type { MoneyExpense } from "./types";
+import type { ExpenseCategory, MoneyExpense } from "./types";
 
 const MONEY_KEY = "lumen.money.expenses.v1";
 let expenses: MoneyExpense[] | null = null;
@@ -1521,4 +1607,43 @@ export async function deleteMoneyExpense(id: string): Promise<void> {
   const i = list.findIndex((x) => x.id === id);
   if (i >= 0) list.splice(i, 1);
   persistExpenses();
+}
+
+export interface ReceiptAnalysis {
+  vendor: string;
+  amount: number;
+  category: ExpenseCategory;
+  dateISO?: string;
+  payment?: string;
+  notes?: string;
+  receiptName?: string;
+}
+
+/** Upload a receipt photo/PDF → Lumen reads it and returns parsed expense fields. */
+export async function analyzeReceipt(file: File | Blob, name?: string): Promise<ReceiptAnalysis> {
+  const form = new FormData();
+  const fileName = name || (file instanceof File ? file.name : "receipt.webp");
+  form.append("file", file, fileName);
+  if (BASE) {
+    const res = await fetch(`${BASE}/money/receipts/analyze`, {
+      method: "POST",
+      credentials: "include",
+      body: form,
+    });
+    if (res.status === 401) {
+      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("lumen:unauthorized"));
+      throw new UnauthorizedError();
+    }
+    const j = await res.json().catch(() => ({ error: `Request failed: ${res.status}` }));
+    if (!res.ok || !j?.fields) throw new Error(j?.error || `Request failed: ${res.status}`);
+    return j.fields as ReceiptAnalysis;
+  }
+  await delay(900);
+  return {
+    vendor: "Receipt Scan Sample",
+    amount: 42.5,
+    category: "Office Supplies",
+    dateISO: new Date().toISOString().slice(0, 10),
+    notes: "Sample — set VITE_API_URL for real analysis.",
+  };
 }

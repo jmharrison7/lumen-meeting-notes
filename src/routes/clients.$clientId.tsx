@@ -41,7 +41,7 @@ function ClientDetail() {
   const { clientId } = Route.useParams();
   const [tab, setTab] = useState<Tab>("Notes");
   const [shareOpen, setShareOpen] = useState(false);
-  const { isOwner, canSeeClient } = useAccess();
+  const { isOwner, canContribute, canSeeClient } = useAccess();
   const tabs = allTabs.filter((t) => isOwner || !["Templates", "Access"].includes(t));
   const [askOpen, setAskOpen] = useState(false);
   const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
@@ -49,7 +49,8 @@ function ClientDetail() {
   const ideas = useQuery({ queryKey: ["ideas"], queryFn: listIdeas });
 
   const client = (clients.data ?? []).find((c) => c.id === clientId);
-  const clientIdeas = (ideas.data ?? []).filter((i) => i.clientId === clientId);
+  const clientIdeas = (ideas.data ?? []).filter((i) => i.clientId === clientId && (i.status ?? "accepted") !== "pending");
+  const pendingIdeas = (ideas.data ?? []).filter((i) => i.clientId === clientId && (i.status ?? "accepted") === "pending");
   const clientNotes = (notes.data ?? [])
     .filter((n) => n.clientId === clientId)
     .sort((a, b) => b.date.localeCompare(a.date));
@@ -140,7 +141,15 @@ function ClientDetail() {
         )
       ) : tab === "Ideas" ? (
         <div className="space-y-5">
-          <QuickCapture defaultClientId={clientId} />
+          {canContribute ? <QuickCapture defaultClientId={clientId} /> : null}
+          {isOwner && pendingIdeas.length ? (
+            <section className="space-y-3">
+              <h2 className="text-title text-sm font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                Pending submissions
+              </h2>
+              <IdeasGrid ideas={pendingIdeas} clients={clients.data ?? []} showClient={false} mode="review" />
+            </section>
+          ) : null}
           {ideas.isError ? (
             <ErrorState onRetry={() => void ideas.refetch()} />
           ) : ideas.isLoading ? (

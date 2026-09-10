@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Paperclip, Sparkles, X } from "lucide-react";
+import { Loader2, Paperclip, Sparkles, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -10,11 +10,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  analyzeReceipt,
   createMoneyExpense,
   listClients,
   listMoneyExpenses,
   updateMoneyExpense,
 } from "@/lib/api";
+import type { ReceiptAnalysis } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { ExpenseCategory, MoneyExpense } from "@/lib/types";
 
@@ -45,28 +47,20 @@ function daysApart(a: string, b: string) {
   return Math.abs(new Date(a).getTime() - new Date(b).getTime()) / 86_400_000;
 }
 
-/** Canned "AI extraction" — deterministic, mock only. */
-function smartFill(fileName: string) {
-  const guesses = [
-    { vendor: "Amazon", amount: 24.99, category: "Office Supplies" as ExpenseCategory },
-    { vendor: "Café Mora", amount: 46.2, category: "Meals (50%)" as ExpenseCategory },
-    { vendor: "Adobe Creative Cloud", amount: 59.99, category: "Software & Subscriptions" as ExpenseCategory },
-    { vendor: "Delta Air Lines", amount: 388.4, category: "Travel" as ExpenseCategory },
-  ];
-  const idx = fileName.length % guesses.length;
-  return guesses[idx]!;
-}
+type Suggestion = ReceiptAnalysis & { receiptName?: string };
 
 export function ExpenseDialog({
   open,
   onOpenChange,
   expense,
   defaultYear,
+  prefill,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   expense?: MoneyExpense | undefined;
   defaultYear: number;
+  prefill?: Suggestion | undefined;
 }) {
   const qc = useQueryClient();
   const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
@@ -87,7 +81,9 @@ export function ExpenseDialog({
   const [notes, setNotes] = useState("");
   const [clientId, setClientId] = useState("");
   const [receiptName, setReceiptName] = useState<string | undefined>(undefined);
-  const [suggestion, setSuggestion] = useState<ReturnType<typeof smartFill> | null>(null);
+  const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [dupe, setDupe] = useState<MoneyExpense | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -104,6 +100,15 @@ export function ExpenseDialog({
       setNotes(expense.notes ?? "");
       setClientId(expense.clientId ?? "");
       setReceiptName(expense.receiptName);
+    } else if (prefill) {
+      setDate(dayKey(prefill.dateISO ?? initialDate));
+      setVendor(prefill.vendor);
+      setAmount(prefill.amount.toFixed(2));
+      setCategory(prefill.category);
+      setPayment(prefill.payment ?? "");
+      setNotes(prefill.notes ?? "");
+      setClientId("");
+      setReceiptName(prefill.receiptName);
     } else {
       setDate(initialDate);
       setVendor("");
@@ -122,17 +127,30 @@ export function ExpenseDialog({
     [existing.data],
   );
 
-  function onFile(file: File | undefined) {
+  async function onFile(file: File | undefined) {
     if (!file) return;
     setReceiptName(file.name);
-    setSuggestion(smartFill(file.name));
+    setSuggestion(null);
+    setAnalyzing(true);
+    try {
+      const parsed = await analyzeReceipt(file);
+      setSuggestion({ ...parsed, receiptName: file.name });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't read that receipt.");
+      setReceiptName(file.name); // keep the file attached; user can type fields manually
+    } finally {
+      setAnalyzing(false);
+    }
   }
 
-  function acceptSuggestion() {
+  function applySuggestion() {
     if (!suggestion) return;
+    if (suggestion.dateISO) setDate(dayKey(suggestion.dateISO));
     setVendor(suggestion.vendor);
     setAmount(suggestion.amount.toFixed(2));
     setCategory(suggestion.category);
+    if (suggestion.payment) setPayment(suggestion.payment);
+    if (suggestion.notes) setNotes(suggestion.notes);
     setSuggestion(null);
   }
 
@@ -209,15 +227,16 @@ export function ExpenseDialog({
           {suggestion ? (
             <div className="flex flex-wrap items-center gap-2 rounded-lg border border-ember/30 bg-ember/10 px-3 py-2 text-sm">
               <Sparkles className="size-4 text-ember" aria-hidden />
-              <span>
-                Looks like {suggestion.vendor} — ${suggestion.amount.toFixed(2)}?
+              <span className="min-w-0 flex-1">
+                Read {suggestion.receiptName ? `“${suggestion.receiptName}”` : "it"} — {suggestion.vendor} ·
+                ${suggestion.amount.toFixed(2)}?
               </span>
-              <div className="ml-auto flex gap-1.5">
+              <div className="flex gap-1.5">
                 <button
-                  onClick={acceptSuggestion}
+                  onClick={applySuggestion}
                   className="rounded-md bg-ember px-2.5 py-1 text-[12px] font-medium text-[oklch(0.99_0.005_85)]"
                 >
-                  Use it
+                  Fill the form
                 </button>
                 <button
                   onClick={() => setSuggestion(null)}
@@ -226,6 +245,13 @@ export function ExpenseDialog({
                   Dismiss
                 </button>
               </div>
+            </div>
+          ) : null}
+
+          {analyzing ? (
+            <div className="flex items-center gap-2 rounded-lg border border-hairline bg-surface px-3 py-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin text-ember" aria-hidden />
+              Reading the receipt…
             </div>
           ) : null}
 
@@ -327,21 +353,32 @@ export function ExpenseDialog({
 
           <div className="space-y-1.5">
             <span className={labelCls}>Receipt</span>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-hairline px-3 py-1.5 text-sm hover:bg-accent"
-              >
-                <Paperclip className="size-3.5" aria-hidden /> Attach receipt
-              </button>
+            <label
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                void onFile(e.dataTransfer.files?.[0]);
+              }}
+              className={cn(
+                "flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed px-4 py-5 text-center transition-colors",
+                dragOver ? "border-ember/70 bg-ember/10" : "border-hairline bg-surface hover:border-ember/40",
+              )}
+            >
               {receiptName ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-surface px-2.5 py-1 text-[12px]">
+                <span className="inline-flex items-center gap-1.5 text-sm">
+                  <Paperclip className="size-3.5 text-muted-foreground" aria-hidden />
                   {receiptName}
                   <button
                     type="button"
                     aria-label="Remove receipt"
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       setReceiptName(undefined);
                       setSuggestion(null);
                     }}
@@ -349,19 +386,25 @@ export function ExpenseDialog({
                     <X className="size-3" />
                   </button>
                 </span>
-              ) : (
-                <span className="text-[12px] text-muted-foreground">
-                  Image or PDF — we'll read it for you.
-                </span>
-              )}
+              ) : null}
+              <Upload className={cn("size-5", dragOver ? "text-ember" : "text-muted-foreground")} aria-hidden />
+              <span className="text-sm">
+                Drop a receipt here, or <span className="text-ember">browse</span> — photo or PDF
+              </span>
+              <span className="text-[11px] text-muted-foreground">
+                Lumen reads it and fills in vendor, amount, date &amp; category.
+              </span>
               <input
                 ref={fileRef}
                 type="file"
-                accept="image/*,application/pdf"
+                accept="image/*,application/pdf,.pdf"
                 className="sr-only"
-                onChange={(e) => onFile(e.target.files?.[0])}
+                onChange={(e) => {
+                  void onFile(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
               />
-            </div>
+            </label>
           </div>
 
           {dupe ? (

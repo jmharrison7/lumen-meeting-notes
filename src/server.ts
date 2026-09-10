@@ -47,6 +47,21 @@ function isH3SwallowedErrorBody(body: string): boolean {
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      const url = new URL(request.url);
+      // Same-origin /api proxy -> host-networked backend (see README deploy notes).
+      if (url.pathname.startsWith("/api/")) {
+        const target =
+          (process.env.LUMEN_API_UPSTREAM || "http://127.0.0.1:3200") +
+          url.pathname.slice(4) + url.search;
+        const headers = new Headers(request.headers);
+        headers.delete("host");
+        const init: RequestInit = { method: request.method, headers, redirect: "manual" };
+        if (request.method !== "GET" && request.method !== "HEAD") {
+          init.body = await request.arrayBuffer();
+        }
+        const resp = await fetch(target, init);
+        return new Response(resp.body, { status: resp.status, headers: resp.headers });
+      }
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);

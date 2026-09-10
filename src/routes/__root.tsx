@@ -15,6 +15,7 @@ import { AppShell } from "@/components/lumen/AppShell";
 import { UiStateProvider } from "@/lib/ui-store";
 import { AccessProvider } from "@/lib/access-store";
 import { AuthProvider } from "@/lib/auth-store";
+import { ScopeProvider } from "@/lib/scope-store";
 import { AuthGate } from "@/components/lumen/AuthGate";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -164,15 +165,17 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <UiStateProvider>
         <AuthProvider>
-        <AccessProvider>
-          <AuthGate>
-          <AppShell>
-            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-            <Outlet />
-          </AppShell>
-          </AuthGate>
-          <Toaster position="top-center" />
-        </AccessProvider>
+          <AccessProvider>
+            <ScopeProvider>
+              <AuthGate>
+                <AppShell>
+                  {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+                  <Outlet />
+                </AppShell>
+              </AuthGate>
+              <Toaster position="top-center" />
+            </ScopeProvider>
+          </AccessProvider>
         </AuthProvider>
       </UiStateProvider>
     </QueryClientProvider>

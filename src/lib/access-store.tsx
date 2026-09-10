@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "./auth-store";
 import { listCollaborators } from "./api";
 import type { Collaborator } from "./types";
 
@@ -14,6 +15,7 @@ interface AccessState {
   /** Owner: undefined (everything). Collaborator: the granted client ids. */
   grantedClientIds: string[] | undefined;
   canSeeClient: (clientId: string | undefined) => boolean;
+  canContribute: boolean;
   canEdit: boolean;
   canManageAccess: boolean;
 }
@@ -23,6 +25,7 @@ const Ctx = createContext<AccessState | null>(null);
 export function AccessProvider({ children }: { children: ReactNode }) {
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const { user, grants } = useAuth();
   const { data } = useQuery({ queryKey: ["collaborators"], queryFn: listCollaborators });
   const collaborators = useMemo(() => data ?? [], [data]);
 
@@ -48,19 +51,32 @@ export function AccessProvider({ children }: { children: ReactNode }) {
   const previewing = hydrated ? collaborators.find((c) => c.id === previewId) ?? null : null;
 
   const value = useMemo<AccessState>(() => {
-    const isOwner = !previewing;
+    const actualOwner = user?.role === "owner" || !user?.role;
+    const isOwner = actualOwner && !previewing;
+    const effectiveClientIds = previewing
+      ? previewing.clientIds
+      : actualOwner
+        ? undefined
+        : grants.map((g) => g.clientId);
+    const strongestGrant = grants.some((g) => g.access === "editor")
+      ? "editor"
+      : grants.some((g) => g.access === "contributor")
+        ? "contributor"
+        : "viewer";
+    const effectiveRole = previewing?.role ?? (actualOwner ? "editor" : strongestGrant);
     return {
       previewing,
       collaborators,
       previewAs,
       isOwner,
-      grantedClientIds: isOwner ? undefined : previewing!.clientIds,
+      grantedClientIds: isOwner ? undefined : effectiveClientIds,
       canSeeClient: (clientId) =>
-        isOwner || (!!clientId && previewing!.clientIds.includes(clientId)),
-      canEdit: isOwner || previewing!.role === "editor",
+        isOwner || (!!clientId && !!effectiveClientIds?.includes(clientId)),
+      canContribute: isOwner || effectiveRole === "contributor" || effectiveRole === "editor",
+      canEdit: isOwner || effectiveRole === "editor",
       canManageAccess: isOwner,
     };
-  }, [previewing, collaborators, previewAs]);
+  }, [previewing, collaborators, previewAs, user, grants]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
