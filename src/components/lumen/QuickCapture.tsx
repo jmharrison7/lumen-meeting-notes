@@ -371,19 +371,20 @@ export function QuickCapture({
             ) : null}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <input
+          <div className="flex flex-wrap items-end gap-2">
+            <textarea
               value={typed}
               onChange={(e) => setTyped(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                   e.preventDefault();
                   startTyped();
                 }
               }}
+              rows={4}
               placeholder={typePlaceholder}
               aria-label="Type an idea"
-              className="min-h-[44px] flex-1 rounded-lg border border-hairline bg-surface px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ember/40"
+              className="min-h-[104px] flex-1 resize-y rounded-lg border border-hairline bg-surface px-3 py-2.5 text-sm leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-ember/40"
             />
             <button
               onClick={startTyped}
