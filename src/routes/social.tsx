@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { Camera, Check, ExternalLink, Plus, RefreshCw, Sparkles, Trash2, Upload } from "lucide-react";
+import { Camera, Check, ExternalLink, Mic, Plus, RefreshCw, Sparkles, Trash2, Upload } from "lucide-react";
 import {
   analyzeSocialMedia,
   createSocialDraft,
@@ -15,6 +15,7 @@ import {
   refreshSocialSource,
   socialMediaUrl,
   suggestSocialMedia,
+  transcribeAudio,
   updateSocialDraft,
   updateSocialMedia,
   uploadSocialMedia,
@@ -144,6 +145,12 @@ function DraftsTab() {
   const [clientFilter, setClientFilter] = useState("");
   const [body, setBody] = useState("");
   const [draftClient, setDraftClient] = useState("");
+  // Mary explains her work out loud far more easily than she types it: record, transcribe, and
+  // the transcript becomes the draft - and raw material for generation.
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const recChunks = useRef<Blob[]>([]);
+  const recRef = useRef<MediaRecorder | null>(null);
 
   const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
   const drafts = useQuery({
@@ -203,6 +210,48 @@ function DraftsTab() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["socialDrafts"] }),
   });
 
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream);
+      recChunks.current = [];
+      rec.ondataavailable = (e) => {
+        if (e.data.size) recChunks.current.push(e.data);
+      };
+      rec.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(recChunks.current, { type: rec.mimeType || "audio/webm" });
+        setTranscribing(true);
+        try {
+          const out = await transcribeAudio(blob, []);
+          const text = (out.transcript || "").trim();
+          if (text) {
+            await createSocialDraft({
+              body: text,
+              source: "voice",
+              ...(draftClient ? { clientId: draftClient } : {}),
+            });
+            void qc.invalidateQueries({ queryKey: ["socialDrafts"] });
+          }
+        } catch {
+          // transcription failed - nothing saved; the mic is already released
+        } finally {
+          setTranscribing(false);
+        }
+      };
+      recRef.current = rec;
+      rec.start();
+      setRecording(true);
+    } catch {
+      // microphone refused
+    }
+  }
+
+  function stopRecording() {
+    recRef.current?.stop();
+    setRecording(false);
+  }
+
   const clientName = (id?: string) => (clients.data ?? []).find((c) => c.id === id)?.name;
   const photosFor = (draftId: string) => (media.data ?? []).filter((m) => m.draftId === draftId);
 
@@ -234,6 +283,10 @@ function DraftsTab() {
 
       <section className="rounded-xl border border-hairline bg-card p-4">
         <SectionTitle>New draft</SectionTitle>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          Talk it through instead of typing — record your explanation of the project and we'll
+          transcribe it into a draft, then write posts from it.
+        </p>
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
@@ -250,6 +303,17 @@ function DraftsTab() {
               </option>
             ))}
           </select>
+          <button
+            onClick={recording ? stopRecording : () => void startRecording()}
+            disabled={transcribing}
+            className={cn(
+              "inline-flex min-h-[44px] items-center gap-2 rounded-lg border px-4 text-sm transition-colors disabled:opacity-50",
+              recording ? "border-ember bg-ember-soft text-foreground" : "border-hairline hover:bg-accent",
+            )}
+          >
+            <Mic className="size-4" />
+            {recording ? "Stop" : transcribing ? "Transcribing…" : "Record"}
+          </button>
           <button
             onClick={() => create.mutate()}
             disabled={!body.trim() || create.isPending}

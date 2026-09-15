@@ -1794,6 +1794,7 @@ export async function createSocialDraft(input: {
   body: string;
   clientId?: string | undefined;
   platform?: string | undefined;
+  source?: string | undefined;
 }): Promise<SocialDraft> {
   if (BASE) return http<SocialDraft>("/social-drafts", { method: "POST", body: JSON.stringify(input) });
   await delay(160);
