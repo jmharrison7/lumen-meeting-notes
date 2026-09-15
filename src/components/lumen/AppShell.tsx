@@ -15,6 +15,7 @@ import {
   Wallet,
 
   Search,
+  Share2,
   Sun,
   Users,
   UserCog,
@@ -44,6 +45,9 @@ import { useAuth } from "@/lib/auth-store";
 import { useScope } from "@/lib/scope-store";
 import { MobileTabBar } from "./MobileTabBar";
 import { InstallHint } from "./InstallHint";
+
+// The social scheduling workspace (Postiz). A separate app, not a Lumen route.
+const SOCIAL_URL = "https://social.joshandmary.us";
 
 const nav = [
   // Mary: desktop leads with the To-do list — it's where she works from 90% of the time.
@@ -202,6 +206,18 @@ export function AppShell({ children }: { children: ReactNode }) {
               {n.label}
             </Link>
           ))}
+
+          {/* Social: the scheduling workspace (Postiz). A separate app, not a Lumen
+              route, so it is a plain link in a new tab rather than a router Link. */}
+          <a
+            href={SOCIAL_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
+          >
+            <Share2 className="size-4 opacity-70" />
+            Social
+          </a>
         </nav>
 
         <div className="px-3 pt-5">

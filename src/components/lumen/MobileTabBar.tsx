@@ -1,5 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { Briefcase, CheckCircle2, FileText, Home, Lightbulb, Search } from "lucide-react";
+import { Briefcase, CheckCircle2, FileText, Home, Lightbulb, Search, Share2 } from "lucide-react";
+
+// Social scheduling workspace (Postiz) — a separate app, not a Lumen route.
+const SOCIAL_URL = "https://social.joshandmary.us";
 
 const tabs = [
   // Mary: mobile opens on Ideas — she captures thoughts while out walking, not at a desk.
@@ -32,6 +35,21 @@ export function MobileTabBar() {
             </Link>
           </li>
         ))}
+
+        {/* Social: the scheduling workspace (Postiz). A separate app, so a plain link
+            rather than a router Link — there is no Lumen route to match. */}
+        <li className="flex-1">
+          <a
+            href={SOCIAL_URL}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Social"
+            className="flex min-h-[56px] flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-medium text-muted-foreground transition-colors"
+          >
+            <Share2 className="size-5" />
+            Social
+          </a>
+        </li>
       </ul>
     </nav>
   );
