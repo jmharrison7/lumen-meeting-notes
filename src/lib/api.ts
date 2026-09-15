@@ -1931,3 +1931,17 @@ export async function deleteSocialMedia(id: string): Promise<void> {
 export function socialMediaUrl(id: string): string {
   return `${BASE ?? ""}/social/media/${id}/raw`;
 }
+
+export async function suggestSocialMedia(
+  draftIds: string[],
+  limit = 6,
+): Promise<Record<string, Array<SocialMedia & { why?: string[]; score?: number }>>> {
+  if (!BASE || !draftIds.length) {
+    await delay(80);
+    return {};
+  }
+  const res = await http<{
+    suggestions: Record<string, Array<SocialMedia & { why?: string[]; score?: number }>>;
+  }>("/social/media/suggest", { method: "POST", body: JSON.stringify({ draftIds, limit }) });
+  return res.suggestions ?? {};
+}

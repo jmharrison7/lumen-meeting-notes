@@ -14,6 +14,7 @@ import {
   listSocialSources,
   refreshSocialSource,
   socialMediaUrl,
+  suggestSocialMedia,
   updateSocialDraft,
   updateSocialMedia,
   uploadSocialMedia,
@@ -155,6 +156,28 @@ function DraftsTab() {
   });
   const media = useQuery({ queryKey: ["socialMedia", "all"], queryFn: () => listSocialMedia() });
 
+  const draftIdList = (drafts.data ?? []).map((d) => d.id);
+  const suggestions = useQuery({
+    queryKey: ["socialSuggestions", draftIdList.join(",")],
+    queryFn: () => suggestSocialMedia(draftIdList, 6),
+    enabled: draftIdList.length > 0,
+  });
+
+  const attachPhoto = useMutation({
+    mutationFn: (v: { id: string; draftId: string }) => updateSocialMedia(v.id, { draftId: v.draftId }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["socialMedia"] });
+      void qc.invalidateQueries({ queryKey: ["socialSuggestions"] });
+    },
+  });
+  const detachPhoto = useMutation({
+    mutationFn: (id: string) => updateSocialMedia(id, { draftId: "" }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["socialMedia"] });
+      void qc.invalidateQueries({ queryKey: ["socialSuggestions"] });
+    },
+  });
+
   const create = useMutation({
     mutationFn: () =>
       createSocialDraft({ body: body.trim(), ...(draftClient ? { clientId: draftClient } : {}) }),
@@ -268,6 +291,7 @@ function DraftsTab() {
         <ul className="space-y-3">
           {(drafts.data ?? []).map((d) => {
             const shots = photosFor(d.id);
+            const cand = (suggestions.data?.[d.id] ?? []).filter((m) => !m.draftId);
             return (
               <li key={d.id} className="rounded-xl border border-hairline bg-card p-4">
                 <div className="flex flex-wrap items-center gap-2">
@@ -294,18 +318,42 @@ function DraftsTab() {
                   </span>
                 </div>
                 <p className="mt-2.5 whitespace-pre-wrap text-sm">{d.body}</p>
-                {shots.length ? (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {shots.map((m) => (
-                      <img
-                        key={m.id}
-                        src={socialMediaUrl(m.id)}
-                        alt={m.caption || m.name}
-                        className="size-16 rounded-lg border border-hairline object-cover"
-                      />
-                    ))}
+                {shots.length || cand.length ? (
+                  <div className="mt-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                      Photos for this post
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {shots.map((m) => (
+                        <button
+                          key={m.id}
+                          onClick={() => detachPhoto.mutate(m.id)}
+                          title="Remove from this post"
+                          className="overflow-hidden rounded-lg border-2 border-ember"
+                        >
+                          <img src={socialMediaUrl(m.id)} alt={m.caption || m.name} className="size-16 object-cover" />
+                        </button>
+                      ))}
+                      {cand.slice(0, 5).map((m) => (
+                        <button
+                          key={m.id}
+                          onClick={() => attachPhoto.mutate({ id: m.id, draftId: d.id })}
+                          title={m.why && m.why.length ? m.why.join(", ") : "Use on this post"}
+                          className="overflow-hidden rounded-lg border border-hairline opacity-75 transition-opacity hover:opacity-100"
+                        >
+                          <img src={socialMediaUrl(m.id)} alt={m.caption || m.name} className="size-16 object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                    <p className="mt-1.5 text-[11px] text-muted-foreground">
+                      {cand.length ? "Tap a photo to use it on this post." : "No other photos match this post yet."}
+                    </p>
                   </div>
-                ) : null}
+                ) : (
+                  <p className="mt-3 text-[11px] text-muted-foreground">
+                    No photos yet — add some in the Photos tab and they'll be matched to posts here.
+                  </p>
+                )}
                 <div className="mt-3 flex flex-wrap gap-2">
                   {d.status === "draft" ? (
                     <button
