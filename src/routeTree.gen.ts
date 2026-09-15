@@ -16,6 +16,7 @@ import { Route as CollaboratorsRouteImport } from './routes/collaborators'
 import { Route as ContactsRouteImport } from './routes/contacts'
 import { Route as MoneyRouteImport } from './routes/money'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as SocialRouteImport } from './routes/social'
 import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as TodayRouteImport } from './routes/today'
 import { Route as ClientsIndexRouteImport } from './routes/clients.index'
@@ -60,6 +61,11 @@ const MoneyRoute = MoneyRouteImport.update({
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
   path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SocialRoute = SocialRouteImport.update({
+  id: '/social',
+  path: '/social',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TemplatesRoute = TemplatesRouteImport.update({
@@ -121,6 +127,7 @@ export interface FileRoutesByFullPath {
   '/contacts': typeof ContactsRoute
   '/money': typeof MoneyRoute
   '/search': typeof SearchRoute
+  '/social': typeof SocialRoute
   '/templates': typeof TemplatesRoute
   '/today': typeof TodayRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
@@ -140,6 +147,7 @@ export interface FileRoutesByTo {
   '/contacts': typeof ContactsRoute
   '/money': typeof MoneyRoute
   '/search': typeof SearchRoute
+  '/social': typeof SocialRoute
   '/templates': typeof TemplatesRoute
   '/today': typeof TodayRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
@@ -160,6 +168,7 @@ export interface FileRoutesById {
   '/contacts': typeof ContactsRoute
   '/money': typeof MoneyRoute
   '/search': typeof SearchRoute
+  '/social': typeof SocialRoute
   '/templates': typeof TemplatesRoute
   '/today': typeof TodayRoute
   '/clients/$clientId': typeof ClientsClientIdRoute
@@ -181,6 +190,7 @@ export interface FileRouteTypes {
     | '/contacts'
     | '/money'
     | '/search'
+    | '/social'
     | '/templates'
     | '/today'
     | '/clients/$clientId'
@@ -200,6 +210,7 @@ export interface FileRouteTypes {
     | '/contacts'
     | '/money'
     | '/search'
+    | '/social'
     | '/templates'
     | '/today'
     | '/clients/$clientId'
@@ -219,6 +230,7 @@ export interface FileRouteTypes {
     | '/contacts'
     | '/money'
     | '/search'
+    | '/social'
     | '/templates'
     | '/today'
     | '/clients/$clientId'
@@ -239,6 +251,7 @@ export interface RootRouteChildren {
   ContactsRoute: typeof ContactsRoute
   MoneyRoute: typeof MoneyRoute
   SearchRoute: typeof SearchRoute
+  SocialRoute: typeof SocialRoute
   TemplatesRoute: typeof TemplatesRoute
   TodayRoute: typeof TodayRoute
   ClientsClientIdRoute: typeof ClientsClientIdRoute
@@ -300,6 +313,13 @@ declare module '@tanstack/react-router' {
       path: '/search'
       fullPath: '/search'
       preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/social': {
+      id: '/social'
+      path: '/social'
+      fullPath: '/social'
+      preLoaderRoute: typeof SocialRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/templates': {
@@ -383,6 +403,7 @@ const rootRouteChildren: RootRouteChildren = {
   ContactsRoute: ContactsRoute,
   MoneyRoute: MoneyRoute,
   SearchRoute: SearchRoute,
+  SocialRoute: SocialRoute,
   TemplatesRoute: TemplatesRoute,
   TodayRoute: TodayRoute,
   ClientsClientIdRoute: ClientsClientIdRoute,

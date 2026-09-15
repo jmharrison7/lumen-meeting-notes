@@ -1,5 +1,15 @@
 import { actionItems, calendar, clientsWithStats, notes } from "./mock-data";
-import type { ActionItem, ActionTemplate, CalendarEvent, Client, Note, Priority, TagColor } from "./types";
+import type {
+  ActionItem,
+  ActionTemplate,
+  CalendarEvent,
+  Client,
+  Note,
+  Priority,
+  SocialDraft,
+  SocialDraftStatus,
+  TagColor,
+} from "./types";
 
 /**
  * Thin client layer. Production always talks HTTP; local/dev builds can omit
@@ -1753,4 +1763,74 @@ export async function analyzeReceipt(file: File | Blob, name?: string): Promise<
     dateISO: new Date().toISOString().slice(0, 10),
     notes: "Sample — set VITE_API_URL for real analysis.",
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * Social drafts — drafted in Lumen, published from Postiz
+ * ------------------------------------------------------------------ */
+const socialDraftsMock: SocialDraft[] = [];
+
+export async function listSocialDrafts(params?: {
+  clientId?: string | undefined;
+  status?: string | undefined;
+}): Promise<SocialDraft[]> {
+  if (BASE) {
+    const qs = new URLSearchParams();
+    if (params?.clientId) qs.set("clientId", params.clientId);
+    if (params?.status) qs.set("status", params.status);
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return http<SocialDraft[]>(`/social-drafts${suffix}`);
+  }
+  await delay(180);
+  return socialDraftsMock
+    .filter((d) => (params?.clientId ? d.clientId === params.clientId : true))
+    .filter((d) => (params?.status ? d.status === params.status : true))
+    .map(clone);
+}
+
+export async function createSocialDraft(input: {
+  body: string;
+  clientId?: string | undefined;
+  platform?: string | undefined;
+}): Promise<SocialDraft> {
+  if (BASE) return http<SocialDraft>("/social-drafts", { method: "POST", body: JSON.stringify(input) });
+  await delay(160);
+  const draft: SocialDraft = {
+    id: `sd_${Math.random().toString(36).slice(2, 10)}`,
+    platform: input.platform ?? "instagram",
+    body: input.body,
+    media: [],
+    status: "draft",
+    createdAtISO: new Date().toISOString(),
+  };
+  if (input.clientId) draft.clientId = input.clientId;
+  socialDraftsMock.unshift(draft);
+  return clone(draft);
+}
+
+export async function updateSocialDraft(
+  id: string,
+  patch: {
+    body?: string | undefined;
+    status?: SocialDraftStatus | undefined;
+    scheduledFor?: string | undefined;
+    clientId?: string | undefined;
+  },
+): Promise<SocialDraft> {
+  if (BASE) return http<SocialDraft>(`/social-drafts/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
+  await delay(140);
+  const d = socialDraftsMock.find((x) => x.id === id);
+  if (!d) throw new Error("draft not found");
+  Object.assign(d, patch);
+  return clone(d);
+}
+
+export async function deleteSocialDraft(id: string): Promise<void> {
+  if (BASE) {
+    await http<{ ok: true }>(`/social-drafts/${id}`, { method: "DELETE" });
+    return;
+  }
+  await delay(140);
+  const i = socialDraftsMock.findIndex((d) => d.id === id);
+  if (i >= 0) socialDraftsMock.splice(i, 1);
 }

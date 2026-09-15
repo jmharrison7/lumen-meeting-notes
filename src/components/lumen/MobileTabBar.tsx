@@ -12,6 +12,7 @@ const tabs = [
   { to: "/actions", label: "To-dos", icon: CheckCircle2, exact: false },
   { to: "/clients", label: "Clients", icon: Briefcase, exact: false },
   { to: "/search", label: "Search", icon: Search, exact: false },
+  { to: "/social", label: "Social", icon: Share2, exact: false },
 ] as const;
 
 export function MobileTabBar() {
@@ -35,21 +36,6 @@ export function MobileTabBar() {
             </Link>
           </li>
         ))}
-
-        {/* Social: the scheduling workspace (Postiz). A separate app, so a plain link
-            rather than a router Link — there is no Lumen route to match. */}
-        <li className="flex-1">
-          <a
-            href={SOCIAL_URL}
-            target="_blank"
-            rel="noreferrer"
-            aria-label="Social"
-            className="flex min-h-[56px] flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-medium text-muted-foreground transition-colors"
-          >
-            <Share2 className="size-5" />
-            Social
-          </a>
-        </li>
       </ul>
     </nav>
   );

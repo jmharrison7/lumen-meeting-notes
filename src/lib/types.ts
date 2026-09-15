@@ -337,3 +337,23 @@ export interface MoneyExpense {
   source: "manual" | "email-auto";
   createdAtISO: string;
 }
+
+
+/* ------------------------------------------------------------------ *
+ * Social drafts — drafted in Lumen, published from Postiz
+ * ------------------------------------------------------------------ */
+export type SocialDraftStatus = "draft" | "approved" | "scheduled" | "published";
+
+export interface SocialDraft {
+  id: string;
+  clientId?: string | undefined;
+  platform: string;
+  body: string;
+  media: string[];
+  status: SocialDraftStatus;
+  scheduledFor?: string | undefined;
+  source?: string | undefined;
+  sourceId?: string | undefined;
+  createdAtISO?: string | undefined;
+  updatedAtISO?: string | undefined;
+}
