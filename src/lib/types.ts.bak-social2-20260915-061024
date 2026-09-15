@@ -357,25 +357,3 @@ export interface SocialDraft {
   createdAtISO?: string | undefined;
   updatedAtISO?: string | undefined;
 }
-
-
-export interface SocialSource {
-  id: string;
-  kind: string;
-  url: string;
-  title: string;
-  chars: number;
-  fetchedAtISO?: string | undefined;
-}
-
-export interface SocialMedia {
-  id: string;
-  clientId?: string | undefined;
-  name: string;
-  mime: string;
-  sizeBytes: number;
-  caption: string;
-  tags: string[];
-  draftId?: string | undefined;
-  createdAtISO?: string | undefined;
-}

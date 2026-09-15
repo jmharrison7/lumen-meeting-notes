@@ -8,8 +8,6 @@ import type {
   Priority,
   SocialDraft,
   SocialDraftStatus,
-  SocialMedia,
-  SocialSource,
   TagColor,
 } from "./types";
 
@@ -1835,99 +1833,4 @@ export async function deleteSocialDraft(id: string): Promise<void> {
   await delay(140);
   const i = socialDraftsMock.findIndex((d) => d.id === id);
   if (i >= 0) socialDraftsMock.splice(i, 1);
-}
-
-/* ------------------------------------------------------------------ *
- * Social: website source, generation, and the photo library
- * ------------------------------------------------------------------ */
-export async function listSocialSources(): Promise<SocialSource[]> {
-  if (BASE) return http<SocialSource[]>("/social/sources");
-  await delay(140);
-  return [];
-}
-
-export async function refreshSocialSource(url?: string): Promise<{ chars: number; url: string }> {
-  if (BASE) {
-    return http<{ chars: number; url: string }>("/social/sources/refresh", {
-      method: "POST",
-      body: JSON.stringify(url ? { url } : {}),
-    });
-  }
-  await delay(400);
-  return { chars: 0, url: url ?? "" };
-}
-
-export async function generateSocialDrafts(
-  count = 3,
-): Promise<{ created: number; drafts: SocialDraft[] }> {
-  if (BASE) {
-    return http<{ created: number; drafts: SocialDraft[] }>("/social-drafts/generate", {
-      method: "POST",
-      body: JSON.stringify({ count }),
-    });
-  }
-  await delay(600);
-  return { created: 0, drafts: [] };
-}
-
-export async function listSocialMedia(params?: {
-  clientId?: string | undefined;
-  untagged?: boolean | undefined;
-}): Promise<SocialMedia[]> {
-  if (BASE) {
-    const qs = new URLSearchParams();
-    if (params?.clientId) qs.set("clientId", params.clientId);
-    if (params?.untagged) qs.set("untagged", "1");
-    const suffix = qs.toString() ? `?${qs.toString()}` : "";
-    return http<SocialMedia[]>(`/social/media${suffix}`);
-  }
-  await delay(160);
-  return [];
-}
-
-// Raw fetch on purpose: http() hard-codes content-type: application/json, which would break
-// the multipart boundary and silently store the wrong bytes.
-export async function uploadSocialMedia(file: File, clientId?: string): Promise<SocialMedia> {
-  const form = new FormData();
-  form.append("file", file, file.name);
-  if (clientId) form.append("clientId", clientId);
-  const res = await fetch(`${BASE}/social/media`, {
-    method: "POST",
-    credentials: "include",
-    body: form,
-  });
-  if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
-  return (await res.json()) as SocialMedia;
-}
-
-export async function updateSocialMedia(
-  id: string,
-  patch: {
-    clientId?: string | undefined;
-    caption?: string | undefined;
-    tags?: string[] | undefined;
-    draftId?: string | undefined;
-  },
-): Promise<SocialMedia> {
-  if (BASE) return http<SocialMedia>(`/social/media/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
-  await delay(120);
-  throw new Error("not available in mock mode");
-}
-
-export async function analyzeSocialMedia(id: string): Promise<SocialMedia> {
-  if (BASE) return http<SocialMedia>(`/social/media/${id}/analyze`, { method: "POST" });
-  await delay(200);
-  throw new Error("not available in mock mode");
-}
-
-export async function deleteSocialMedia(id: string): Promise<void> {
-  if (BASE) {
-    await http<{ ok: true }>(`/social/media/${id}`, { method: "DELETE" });
-    return;
-  }
-  await delay(120);
-}
-
-export function socialMediaUrl(id: string): string {
-  return `${BASE ?? ""}/social/media/${id}/raw`;
 }
