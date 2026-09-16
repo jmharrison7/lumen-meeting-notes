@@ -359,14 +359,20 @@ function Expenses({
   const [analyzing, setAnalyzing] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   // Batch receipt upload: dropped files queue up and are confirmed one at a time.
-  const [batch, setBatch] = useState<{ total: number; done: number } | null>(null);
+  const [batch, setBatch] = useState<{ total: number; done: number; skipped: number } | null>(null);
   const receiptFileRef = useRef<HTMLInputElement>(null);
   const queueRef = useRef<File[]>([]);
+  // Set when the dialog reports a deliberate skip, so the batch advance can tell a
+  // skipped receipt from a logged one instead of counting both as logged.
+  const skipRef = useRef(false);
 
   function finishBatch() {
     setBatch((b) => {
-      if (b && b.done > 0) {
-        toast.success(`${b.done} receipt${b.done === 1 ? "" : "s"} logged.`);
+      if (b && (b.done > 0 || b.skipped > 0)) {
+        const logged = `${b.done} receipt${b.done === 1 ? "" : "s"} logged`;
+        toast.success(
+          b.skipped ? `${logged}, ${b.skipped} skipped as already recorded.` : `${logged}.`,
+        );
       }
       return null;
     });
@@ -401,17 +407,23 @@ function Expenses({
     const idle = !analyzing && !batch;
     queueRef.current = queueRef.current.concat(list);
     if (idle) {
-      setBatch({ total: queueRef.current.length, done: 0 });
+      setBatch({ total: queueRef.current.length, done: 0, skipped: 0 });
       void nextFromQueue();
     } else {
-      setBatch((b) => ({ total: (b?.total ?? 0) + list.length, done: b?.done ?? 0 }));
+      setBatch((b) => ({
+        total: (b?.total ?? 0) + list.length,
+        done: b?.done ?? 0,
+        skipped: b?.skipped ?? 0,
+      }));
     }
   }
 
-  /** The dialog closed — count it and move on to the next queued receipt. */
-  function advanceBatch() {
+  /** The dialog closed — move on to the next queued receipt. A skipped one is not counted as logged. */
+  function advanceBatch(skipped = false) {
     if (!batch) return;
-    setBatch((b) => (b ? { ...b, done: b.done + 1 } : b));
+    setBatch((b) =>
+      b ? { ...b, done: b.done + (skipped ? 0 : 1), skipped: b.skipped + (skipped ? 1 : 0) } : b,
+    );
     if (!queueRef.current.length) {
       finishBatch();
       return;
@@ -499,7 +511,8 @@ function Expenses({
           <>
             <Upload className="size-5 text-ember" aria-hidden />
             <span className="text-sm">
-              {batch.done} of {batch.total} logged — confirm the open receipt to continue
+              {batch.done} of {batch.total} logged
+            {batch.skipped ? ` · ${batch.skipped} skipped` : ""} — confirm the open receipt to continue
             </span>
           </>
         ) : (
@@ -650,7 +663,15 @@ function Expenses({
         open={dialog.open}
         onOpenChange={(v) => {
           setDialog({ open: v });
-          if (!v) advanceBatch();
+          if (!v) {
+            const skipped = skipRef.current;
+            skipRef.current = false;
+            advanceBatch(skipped);
+          }
+        }}
+        onSkip={() => {
+          skipRef.current = true;
+          if (!batch) toast.success("Skipped — nothing logged.");
         }}
         expense={dialog.expense}
         prefill={dialog.prefill}

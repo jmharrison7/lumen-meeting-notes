@@ -55,12 +55,15 @@ export function ExpenseDialog({
   expense,
   defaultYear,
   prefill,
+  onSkip,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   expense?: MoneyExpense | undefined;
   defaultYear: number;
   prefill?: Suggestion | undefined;
+  /** Called instead of saving when the user skips a receipt that is already logged. */
+  onSkip?: (() => void) | undefined;
 }) {
   const qc = useQueryClient();
   const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
@@ -423,6 +426,16 @@ export function ExpenseDialog({
                   className="rounded-md bg-ember px-2.5 py-1 text-[12px] font-medium text-[oklch(0.99_0.005_85)]"
                 >
                   Save anyway
+                </button>
+                <button
+                  onClick={() => {
+                    setDupe(null);
+                    onSkip?.();
+                    onOpenChange(false);
+                  }}
+                  className="rounded-md border border-hairline px-2.5 py-1 text-[12px]"
+                >
+                  Skip import
                 </button>
                 <button
                   onClick={() => setDupe(null)}
