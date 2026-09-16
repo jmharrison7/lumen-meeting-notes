@@ -1641,6 +1641,7 @@ import type {
   IncomeEntry,
   IntakeBucket,
   MoneyExpense,
+  MoneyReviewItem,
   YearEndSummary,
 } from "./types";
 
@@ -1842,6 +1843,36 @@ export async function deleteIncome(id: string): Promise<void> {
     return;
   }
   await delay(160);
+}
+
+/* ------------------------------------------------------------------ *
+ * Review queue — what the mail scanner refused to guess at
+ * ------------------------------------------------------------------ */
+
+export async function listMoneyReview(): Promise<MoneyReviewItem[]> {
+  if (BASE) return http<MoneyReviewItem[]>("/money/review");
+  await delay(140);
+  return [];
+}
+
+/** "dismissed" keeps it out of the books; anything else just records the outcome. */
+export async function resolveMoneyReview(id: string, status: string): Promise<void> {
+  if (BASE) {
+    await http<{ ok: boolean }>(`/money/review/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
+    return;
+  }
+  await delay(120);
+}
+
+export async function deleteMoneyReview(id: string): Promise<void> {
+  if (BASE) {
+    await http<{ ok: boolean }>(`/money/review/${id}`, { method: "DELETE" });
+    return;
+  }
+  await delay(120);
 }
 
 /**

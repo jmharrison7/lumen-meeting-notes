@@ -396,6 +396,24 @@ export interface YearEndSummary {
 /** Where an uploaded document belongs: the business, the house, or money coming in. */
 export type IntakeBucket = "business" | "household" | "income";
 
+/**
+ * Something the mail scanner found but would not guess at. A wrong amount nobody
+ * notices is worse than a missing one somebody can see, so these wait for a human.
+ */
+export interface MoneyReviewItem {
+  id: string;
+  source: string;
+  vendor: string;
+  dateISO: string;
+  subject: string;
+  messageId: string;
+  reason: string;
+  amountHint: number;
+  category: string;
+  status: string;
+  createdAtISO: string;
+}
+
 /** Money received — receivables. Mirrors the server's money_income table. */
 export interface IncomeEntry {
   id: string;

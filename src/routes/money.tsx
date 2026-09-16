@@ -33,8 +33,10 @@ import {
   listHouseholdExpenses,
   listIncome,
   listMoneyExpenses,
+  listMoneyReview,
   listMoneyYears,
   normalizeVendor,
+  resolveMoneyReview,
   updateHouseholdExpense,
   updateIncome,
   yearBundleUrl,
@@ -60,6 +62,7 @@ import type {
   IncomeEntry,
   IntakeBucket,
   MoneyExpense,
+  MoneyReviewItem,
   YearEndSummary,
 } from "@/lib/types";
 
@@ -530,6 +533,70 @@ function IntakeZone({ year }: { year: number }) {
   );
 }
 
+/**
+ * What the mail scanner found but would not guess at. A wrong amount nobody notices is
+ * worse than a missing one somebody can see, so these wait here for a person to decide.
+ * Renders nothing when the queue is empty.
+ */
+function ReviewQueue() {
+  const qc = useQueryClient();
+  const review = useQuery({ queryKey: ["money", "review"], queryFn: () => listMoneyReview() });
+  const items = review.data ?? [];
+  if (!items.length) return null;
+
+  const why = (r: string) =>
+    r === "unlabeled-amount"
+      ? "no amount was labelled in the email"
+      : r === "no-amount"
+        ? "no amount could be read at all"
+        : r;
+
+  async function dismiss(id: string) {
+    await resolveMoneyReview(id, "dismissed");
+    await qc.invalidateQueries({ queryKey: ["money"] });
+    toast.success("Dismissed — kept out of the books.");
+  }
+
+  return (
+    <div className="rounded-xl border border-ember/40 bg-ember/5 p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Needs review</p>
+        <span className="text-[12px] text-muted-foreground">
+          {items.length} waiting · nothing filed
+        </span>
+      </div>
+      <p className="mt-1 text-sm text-muted-foreground">
+        The mail scanner found these but could not read an amount with confidence, so it filed
+        nothing. Check each against the email before logging it.
+      </p>
+      <ul className="mt-3 divide-y divide-hairline">
+        {items.map((r) => (
+          <li key={r.id} className="py-2.5 text-sm">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="w-14 shrink-0 text-muted-foreground">{r.dateISO.slice(0, 10)}</span>
+              <span className="min-w-28 flex-1 truncate font-medium">{r.vendor || "Unknown"}</span>
+              {r.amountHint ? (
+                <span className="rounded-full border border-hairline px-2 py-0.5 text-[11px] text-muted-foreground">
+                  hint {money(r.amountHint)}
+                </span>
+              ) : null}
+              <button
+                onClick={() => void dismiss(r.id)}
+                className="rounded-md border border-hairline px-2.5 py-1 text-[12px] hover:bg-accent"
+              >
+                Not an expense
+              </button>
+            </div>
+            <p className="mt-1 truncate text-[12px] text-muted-foreground" title={r.subject}>
+              {r.subject} — {why(r.reason)}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function Overview({
   rows,
   year,
@@ -556,6 +623,9 @@ function Overview({
     <div className="grid gap-4 md:grid-cols-3">
       <div className="md:col-span-3">
         <IntakeZone year={year} />
+      </div>
+      <div className="md:col-span-3">
+        <ReviewQueue />
       </div>
 
       <div className="rounded-xl border border-hairline bg-surface p-5">
