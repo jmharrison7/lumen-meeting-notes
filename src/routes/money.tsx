@@ -334,20 +334,68 @@ function Expenses({
   const [confirm, setConfirm] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  // Batch receipt upload: dropped files queue up and are confirmed one at a time.
+  const [batch, setBatch] = useState<{ total: number; done: number } | null>(null);
   const receiptFileRef = useRef<HTMLInputElement>(null);
+  const queueRef = useRef<File[]>([]);
 
-  async function handleReceiptFile(file: File | undefined) {
-    if (!file || analyzing) return;
+  function finishBatch() {
+    setBatch((b) => {
+      if (b && b.done > 0) {
+        toast.success(`${b.done} receipt${b.done === 1 ? "" : "s"} logged.`);
+      }
+      return null;
+    });
+    setAnalyzing(false);
+  }
+
+  /** Read the next queued receipt and open the dialog for it. */
+  async function nextFromQueue() {
+    const file = queueRef.current.shift();
+    if (!file) {
+      finishBatch();
+      return;
+    }
     setAnalyzing(true);
     try {
       const parsed = await analyzeReceipt(file);
       setDialog({ open: true, prefill: { ...parsed, receiptName: file.name } });
-      toast.success("Receipt read — check the fields, then log it.");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't read that receipt.");
-    } finally {
-      setAnalyzing(false);
+      // One unreadable scan must not stall the rest of the batch.
+      toast.error(`${file.name}: ${e instanceof Error ? e.message : "couldn't read it."}`);
+      setBatch((b) => (b ? { ...b, done: b.done + 1 } : b));
+      await nextFromQueue();
+      return;
     }
+    setAnalyzing(false);
+  }
+
+  /** Accept one or many receipts at once; extras queue behind the open one. */
+  function handleReceiptFiles(files: File[]) {
+    const list = files.filter(Boolean);
+    if (!list.length) return;
+    const idle = !analyzing && !batch;
+    queueRef.current = queueRef.current.concat(list);
+    if (idle) {
+      setBatch({ total: queueRef.current.length, done: 0 });
+      void nextFromQueue();
+    } else {
+      setBatch((b) => ({ total: (b?.total ?? 0) + list.length, done: b?.done ?? 0 }));
+    }
+  }
+
+  /** The dialog closed — count it and move on to the next queued receipt. */
+  function advanceBatch() {
+    if (!batch) return;
+    setBatch((b) => (b ? { ...b, done: b.done + 1 } : b));
+    if (!queueRef.current.length) {
+      finishBatch();
+      return;
+    }
+    // Let the close commit before reopening: ExpenseDialog seeds its fields from
+    // [open, expense?.id] only, so `open` has to go false first or the next
+    // receipt would show the previous one's values.
+    setTimeout(() => void nextFromQueue(), 60);
   }
 
   const filtered = rows.filter((r) => {
@@ -404,7 +452,7 @@ function Expenses({
         onDrop={(e) => {
           e.preventDefault();
           setDragOver(false);
-          void handleReceiptFile(e.dataTransfer.files?.[0]);
+          void handleReceiptFiles([...e.dataTransfer.files]);
         }}
         onClick={() => receiptFileRef.current?.click()}
         role="button"
@@ -417,26 +465,38 @@ function Expenses({
         {analyzing ? (
           <>
             <Loader2 className="size-5 animate-spin text-ember" aria-hidden />
-            <span className="text-sm">Reading the receipt…</span>
+            <span className="text-sm">
+              {batch && batch.total > 1
+                ? `Reading receipt ${Math.min(batch.done + 1, batch.total)} of ${batch.total}…`
+                : "Reading the receipt…"}
+            </span>
+          </>
+        ) : batch ? (
+          <>
+            <Upload className="size-5 text-ember" aria-hidden />
+            <span className="text-sm">
+              {batch.done} of {batch.total} logged — confirm the open receipt to continue
+            </span>
           </>
         ) : (
           <>
             <Upload className={cn("size-5", dragOver ? "text-ember" : "text-muted-foreground")} aria-hidden />
             <span className="text-sm">
-              Drop a receipt here, or <span className="text-ember">browse</span> — photo or PDF
+              Drop receipts here, or <span className="text-ember">browse</span> — photo or PDF
             </span>
             <span className="text-[11px] text-muted-foreground">
-              Lumen reads it and fills in vendor, amount, date &amp; category.
+              Multiple at once is fine — Lumen reads each and fills in vendor, amount, date &amp; category.
             </span>
           </>
         )}
         <input
           ref={receiptFileRef}
           type="file"
+          multiple
           accept="image/*,application/pdf,.pdf"
           className="sr-only"
           onChange={(e) => {
-            void handleReceiptFile(e.target.files?.[0]);
+            void handleReceiptFiles([...(e.target.files ?? [])]);
             e.target.value = "";
           }}
         />
@@ -564,7 +624,10 @@ function Expenses({
 
       <ExpenseDialog
         open={dialog.open}
-        onOpenChange={(v) => setDialog({ open: v })}
+        onOpenChange={(v) => {
+          setDialog({ open: v });
+          if (!v) advanceBatch();
+        }}
         expense={dialog.expense}
         prefill={dialog.prefill}
         defaultYear={year}
