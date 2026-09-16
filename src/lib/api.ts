@@ -4,11 +4,14 @@ import type {
   ActionTemplate,
   CalendarEvent,
   Client,
+  HashtagSet,
   Note,
+  PostizStatus,
   Priority,
   SocialDraft,
   SocialDraftStatus,
   SocialMedia,
+  SocialSlot,
   SocialSource,
   TagColor,
 } from "./types";
@@ -2149,6 +2152,131 @@ export async function deleteSocialDraft(id: string): Promise<void> {
 /* ------------------------------------------------------------------ *
  * Social: website source, generation, and the photo library
  * ------------------------------------------------------------------ */
+/* ------------------------------------------------------------------ *
+ * Postiz handoff, posting rhythm, approval links, evergreen
+ * ------------------------------------------------------------------ */
+
+/** Is Postiz wired up and which channels can it post to? */
+export async function getPostizStatus(): Promise<PostizStatus> {
+  if (BASE) return http<PostizStatus>("/social/postiz");
+  await delay(120);
+  return { configured: false, reachable: false, url: "", channels: [] };
+}
+
+/** Hand an approved draft to Postiz: mode "now" | "schedule" | "draft". */
+export async function sendDraftToPostiz(
+  id: string,
+  opts?: { mode?: string; date?: string; integration?: string },
+): Promise<SocialDraft> {
+  if (BASE)
+    return http<SocialDraft>(`/social-drafts/${id}/send`, {
+      method: "POST",
+      body: JSON.stringify(opts ?? {}),
+    });
+  await delay(200);
+  throw new Error("Postiz is only wired up in production.");
+}
+
+/** Take the next free slot in the weekly rhythm. */
+export async function queueSocialDraft(
+  id: string,
+): Promise<{ queued: string; postiz: boolean; note?: string; channel?: string }> {
+  if (BASE) return http<{ queued: string; postiz: boolean; note?: string; channel?: string }>(`/social-drafts/${id}/queue`, { method: "POST", body: "{}" });
+  await delay(180);
+  throw new Error("Queueing is only wired up in production.");
+}
+
+/** Create (or reuse) the client approval link for a draft. */
+export async function shareSocialDraft(
+  id: string,
+): Promise<{ url: string; token: string; state: string }> {
+  if (BASE)
+    return http<{ url: string; token: string; state: string }>(`/social-drafts/${id}/share`, { method: "POST", body: "{}" });
+  await delay(140);
+  throw new Error("Approval links are only wired up in production.");
+}
+
+export async function makeDraftVariant(id: string, platform: string): Promise<SocialDraft> {
+  if (BASE)
+    return http<SocialDraft>(`/social-drafts/${id}/variant`, { method: "POST", body: JSON.stringify({ platform }) });
+  await delay(160);
+  throw new Error("Variants are only wired up in production.");
+}
+
+export async function approveDraftsBulk(ids: string[]): Promise<{ approved: number }> {
+  if (BASE) return http<{ approved: number }>("/social-drafts/approve-bulk", { method: "POST", body: JSON.stringify({ ids }) });
+  await delay(160);
+  return { approved: ids.length };
+}
+
+export async function setDraftEvergreen(
+  id: string,
+  evergreen: boolean,
+  recycleDays: number,
+): Promise<SocialDraft> {
+  if (BASE)
+    return http<SocialDraft>(`/social-drafts/${id}/evergreen`, {
+      method: "POST",
+      body: JSON.stringify({ evergreen, recycleDays }),
+    });
+  await delay(140);
+  throw new Error("Evergreen is only wired up in production.");
+}
+
+/** Clone an evergreen draft back into the queue. */
+export async function recycleDraft(id: string): Promise<{ id: string; queuedFor: string }> {
+  if (BASE)
+    return http<{ id: string; queuedFor: string }>(`/social-drafts/${id}/recycle`, { method: "POST", body: "{}" });
+  await delay(160);
+  throw new Error("Recycling is only wired up in production.");
+}
+
+/* --- weekly rhythm --- */
+export async function listSocialSlots(): Promise<SocialSlot[]> {
+  if (BASE) return http<SocialSlot[]>("/social/slots");
+  await delay(120);
+  return [];
+}
+
+export async function createSocialSlot(input: {
+  dayOfWeek: number;
+  time: string;
+  platform?: string;
+}): Promise<SocialSlot> {
+  if (BASE) return http<SocialSlot>("/social/slots", { method: "POST", body: JSON.stringify(input) });
+  await delay(140);
+  return { id: `sl-${Date.now()}`, dayOfWeek: input.dayOfWeek, time: input.time, platform: input.platform ?? "", enabled: true };
+}
+
+export async function deleteSocialSlot(id: string): Promise<void> {
+  if (BASE) {
+    await http<{ ok: boolean }>(`/social/slots/${id}`, { method: "DELETE" });
+    return;
+  }
+  await delay(120);
+}
+
+/* --- hashtag sets --- */
+export async function listHashtagSets(): Promise<HashtagSet[]> {
+  if (BASE) return http<HashtagSet[]>("/social/hashtags");
+  await delay(120);
+  return [];
+}
+
+export async function createHashtagSet(input: { setName: string; tags: string; platform?: string }): Promise<HashtagSet> {
+  if (BASE) return http<HashtagSet>("/social/hashtags", { method: "POST", body: JSON.stringify(input) });
+  await delay(140);
+  return { id: `ht-${Date.now()}`, setName: input.setName, tags: input.tags, platform: input.platform ?? "" };
+}
+
+export async function deleteHashtagSet(id: string): Promise<void> {
+  if (BASE) {
+    await http<{ ok: boolean }>(`/social/hashtags/${id}`, { method: "DELETE" });
+    return;
+  }
+  await delay(120);
+}
+
 export async function listSocialSources(): Promise<SocialSource[]> {
   if (BASE) return http<SocialSource[]>("/social/sources");
   await delay(140);

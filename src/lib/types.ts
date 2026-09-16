@@ -450,6 +450,49 @@ export interface SocialDraft {
   sourceId?: string | undefined;
   createdAtISO?: string | undefined;
   updatedAtISO?: string | undefined;
+  /** Set once handed to Postiz. */
+  postizId?: string | undefined;
+  postizState?: string | undefined;
+  postizSentAt?: string | undefined;
+  /** Client review through the public approval link. */
+  approvalState?: string | undefined;
+  approvalNote?: string | undefined;
+  approvalAt?: string | undefined;
+  hasApprovalLink?: boolean;
+  hashtags?: string | undefined;
+  firstComment?: string | undefined;
+  /** Set when this draft was cloned for another platform. */
+  variantOf?: string | undefined;
+  evergreen?: boolean;
+  recycleDays?: number;
+  recycledCount?: number;
+  lastRecycledAt?: string | undefined;
+}
+
+/** One slot in the studio's weekly posting rhythm. 0 = Sunday. */
+export interface SocialSlot {
+  id: string;
+  dayOfWeek: number;
+  time: string;
+  platform: string;
+  enabled: boolean;
+}
+
+/** A saved set of hashtags, so a post doesn't need them retyped. */
+export interface HashtagSet {
+  id: string;
+  setName: string;
+  tags: string;
+  platform: string;
+}
+
+/** Whether Lumen can reach Postiz, and which channels it can post to. */
+export interface PostizStatus {
+  configured: boolean;
+  reachable: boolean;
+  url: string;
+  channels: { id: string; name: string; provider: string }[];
+  error?: string | undefined;
 }
 
 

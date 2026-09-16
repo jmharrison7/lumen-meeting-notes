@@ -1,18 +1,33 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { Camera, Check, ExternalLink, Mic, Plus, RefreshCw, Sparkles, Trash2, Upload } from "lucide-react";
+import { Camera, Check, Clock, Copy, ExternalLink, Link2, Mic, Plus, RefreshCw, Repeat, Send, Sparkles, Trash2, Upload } from "lucide-react";
+import { toast } from "sonner";
 import {
   analyzeSocialMedia,
+  approveDraftsBulk,
+  createHashtagSet,
   createSocialDraft,
+  createSocialSlot,
+  deleteHashtagSet,
   deleteSocialDraft,
   deleteSocialMedia,
+  deleteSocialSlot,
   generateSocialDrafts,
+  getPostizStatus,
   listClients,
+  listHashtagSets,
   listSocialDrafts,
   listSocialMedia,
+  listSocialSlots,
   listSocialSources,
+  makeDraftVariant,
+  queueSocialDraft,
+  recycleDraft,
   refreshSocialSource,
+  sendDraftToPostiz,
+  setDraftEvergreen,
+  shareSocialDraft,
   socialMediaUrl,
   suggestSocialMedia,
   transcribeAudio,
@@ -22,7 +37,7 @@ import {
 } from "@/lib/api";
 import { EmptyState, ErrorState, ListSkeleton, SectionTitle } from "@/components/lumen/primitives";
 import { cn } from "@/lib/utils";
-import type { SocialDraftStatus } from "@/lib/types";
+import type { HashtagSet, SocialDraft, SocialDraftStatus, SocialSlot } from "@/lib/types";
 
 // Where approved drafts get scheduled and published.
 const POSTIZ_URL = "https://social.joshandmary.us";
@@ -67,6 +82,300 @@ export const Route = createFileRoute("/social")({
   component: SocialPage,
 });
 
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/**
+ * Is Postiz reachable, and what can it post to? Until the API key is on the NAS this
+ * states plainly what is missing rather than failing on every action.
+ */
+function PostizBar() {
+  const status = useQuery({ queryKey: ["postiz"], queryFn: getPostizStatus });
+  const s = status.data;
+  if (!s) return null;
+  if (!s.configured) {
+    return (
+      <div className="rounded-xl border border-dashed border-hairline bg-surface p-4 text-sm">
+        <p className="font-medium">Postiz is not connected yet</p>
+        <p className="mt-1 text-muted-foreground">
+          Drafts are saved here either way. To let Lumen schedule them, add <code>POSTIZ_URL</code> and{" "}
+          <code>POSTIZ_API_KEY</code> to the NAS <code>.env</code> and restart <code>lumen-api</code>.
+        </p>
+      </div>
+    );
+  }
+  if (!s.reachable) {
+    return (
+      <div className="rounded-xl border border-dashed border-hairline bg-surface p-4 text-sm">
+        <p className="font-medium">Postiz is configured but not answering</p>
+        <p className="mt-1 text-muted-foreground">
+          {s.error || "Check the API key, and that Postiz is running."}
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-xl border border-hairline bg-surface p-4 text-sm">
+      <p className="font-medium">
+        Postiz connected · {s.channels.length} channel{s.channels.length === 1 ? "" : "s"}
+      </p>
+      <p className="mt-1 text-muted-foreground">
+        {s.channels.length
+          ? s.channels.map((c) => c.provider || c.name).join(" · ")
+          : "No channels connected yet — connect Instagram inside Postiz."}
+      </p>
+    </div>
+  );
+}
+
+/** The weekly rhythm. Queueing fills the next free slot, so no post needs a date picked. */
+function RhythmPanel() {
+  const qc = useQueryClient();
+  const slots = useQuery({ queryKey: ["socialSlots"], queryFn: listSocialSlots });
+  const [day, setDay] = useState(2);
+  const [time, setTime] = useState("09:00");
+  const add = useMutation({
+    mutationFn: () => createSocialSlot({ dayOfWeek: day, time }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["socialSlots"] });
+      toast.success("Slot added.");
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Could not add that slot."),
+  });
+  const del = useMutation({
+    mutationFn: (id: string) => deleteSocialSlot(id),
+    onSuccess: async () => qc.invalidateQueries({ queryKey: ["socialSlots"] }),
+  });
+  const list = slots.data ?? [];
+  return (
+    <div className="rounded-xl border border-hairline bg-surface p-4">
+      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Posting rhythm</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Set the slots you want filled each week. Then <span className="font-medium text-foreground">Queue</span>{" "}
+        drops a post into the next free one — no date picking.
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <select
+          value={day}
+          onChange={(e) => setDay(Number(e.target.value))}
+          className="h-9 rounded-lg border border-hairline bg-card px-2.5 text-sm"
+        >
+          {DAY_LABELS.map((l, i) => (
+            <option key={l} value={i}>
+              {l}
+            </option>
+          ))}
+        </select>
+        <input
+          type="time"
+          value={time}
+          onChange={(e) => setTime(e.target.value)}
+          className="h-9 rounded-lg border border-hairline bg-surface px-2.5 text-sm"
+        />
+        <button
+          onClick={() => add.mutate()}
+          disabled={add.isPending}
+          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-hairline px-3 text-sm transition-colors hover:bg-accent disabled:opacity-60"
+        >
+          <Plus className="size-3.5" /> Add slot
+        </button>
+      </div>
+      <ul className="mt-3 flex flex-wrap gap-2">
+        {list.map((s: SocialSlot) => (
+          <li key={s.id} className="inline-flex items-center gap-2 rounded-lg border border-hairline px-2.5 py-1 text-[12px]">
+            <Clock className="size-3 opacity-60" />
+            {DAY_LABELS[s.dayOfWeek] || "?"} {s.time}
+            <button onClick={() => del.mutate(s.id)} aria-label="Remove slot" className="text-muted-foreground hover:text-foreground">
+              <Trash2 className="size-3" />
+            </button>
+          </li>
+        ))}
+        {!list.length ? <li className="text-[12px] text-muted-foreground">No slots yet.</li> : null}
+      </ul>
+    </div>
+  );
+}
+
+/** Saved hashtag sets — retyping the same tags on every post is wasted time. */
+function HashtagPanel() {
+  const qc = useQueryClient();
+  const sets = useQuery({ queryKey: ["hashtagSets"], queryFn: listHashtagSets });
+  const [name, setName] = useState("");
+  const [tags, setTags] = useState("");
+  const add = useMutation({
+    mutationFn: () => createHashtagSet({ setName: name, tags }),
+    onSuccess: async () => {
+      setName("");
+      setTags("");
+      await qc.invalidateQueries({ queryKey: ["hashtagSets"] });
+      toast.success("Set saved.");
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Could not save that set."),
+  });
+  const del = useMutation({
+    mutationFn: (id: string) => deleteHashtagSet(id),
+    onSuccess: async () => qc.invalidateQueries({ queryKey: ["hashtagSets"] }),
+  });
+  const list = sets.data ?? [];
+  return (
+    <div className="rounded-xl border border-hairline bg-surface p-4">
+      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Hashtag sets</p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Name (e.g. Weddings)"
+          className="h-9 rounded-lg border border-hairline bg-surface px-2.5 text-sm"
+        />
+        <input
+          value={tags}
+          onChange={(e) => setTags(e.target.value)}
+          placeholder="#seattlewedding #pnwbride"
+          className="h-9 min-w-[14rem] flex-1 rounded-lg border border-hairline bg-surface px-2.5 text-sm"
+        />
+        <button
+          onClick={() => add.mutate()}
+          disabled={add.isPending || !name.trim() || !tags.trim()}
+          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-hairline px-3 text-sm transition-colors hover:bg-accent disabled:opacity-60"
+        >
+          <Plus className="size-3.5" /> Save set
+        </button>
+      </div>
+      <ul className="mt-3 flex flex-wrap gap-2">
+        {list.map((h: HashtagSet) => (
+          <li key={h.id} className="inline-flex items-center gap-2 rounded-lg border border-hairline px-2.5 py-1 text-[12px]">
+            <span className="font-medium">{h.setName}</span>
+            <span className="max-w-[16rem] truncate text-muted-foreground">{h.tags}</span>
+            <button
+              onClick={() => void navigator.clipboard.writeText(h.tags).then(() => toast.success("Copied."))}
+              aria-label={`Copy ${h.setName}`}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <Copy className="size-3" />
+            </button>
+            <button onClick={() => del.mutate(h.id)} aria-label={`Delete ${h.setName}`} className="text-muted-foreground hover:text-foreground">
+              <Trash2 className="size-3" />
+            </button>
+          </li>
+        ))}
+        {!list.length ? <li className="text-[12px] text-muted-foreground">No sets yet.</li> : null}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * Everything that hands a draft onward: into Postiz, into the weekly queue, to the client
+ * for approval, or back around again as evergreen. Self-contained so the draft list only
+ * has to render one element.
+ */
+function DraftPostizActions({ d }: { d: SocialDraft }) {
+  const qc = useQueryClient();
+  const refresh = async () => {
+    await qc.invalidateQueries({ queryKey: ["socialDrafts"] });
+    await qc.invalidateQueries({ queryKey: ["postiz"] });
+  };
+  const send = useMutation({
+    mutationFn: () => sendDraftToPostiz(d.id, { mode: "schedule" }),
+    onSuccess: async () => {
+      await refresh();
+      toast.success("Sent to Postiz.");
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Couldn't send it."),
+  });
+  const queue = useMutation({
+    mutationFn: () => queueSocialDraft(d.id),
+    onSuccess: async (r: { queued: string; postiz: boolean; note?: string }) => {
+      await refresh();
+      toast.success(`Queued for ${new Date(r.queued).toLocaleString()}`, { description: r.postiz ? undefined : r.note });
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Couldn't queue it."),
+  });
+  const share = useMutation({
+    mutationFn: () => shareSocialDraft(d.id),
+    onSuccess: async (r: { url: string }) => {
+      await refresh();
+      try {
+        await navigator.clipboard.writeText(r.url);
+        toast.success("Approval link copied — send it to the client.");
+      } catch {
+        toast.success(r.url);
+      }
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Couldn't make a link."),
+  });
+  const evergreen = useMutation({
+    mutationFn: () => setDraftEvergreen(d.id, !d.evergreen, d.recycleDays || 30),
+    onSuccess: async () => {
+      await refresh();
+      toast.success(d.evergreen ? "Evergreen off." : "Marked evergreen — re-queue it whenever you like.");
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Couldn't change that."),
+  });
+  const recycle = useMutation({
+    mutationFn: () => recycleDraft(d.id),
+    onSuccess: async () => {
+      await refresh();
+      toast.success("Copied back into the queue as a fresh draft.");
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Couldn't recycle it."),
+  });
+  const variant = useMutation({
+    mutationFn: (platform: string) => makeDraftVariant(d.id, platform),
+    onSuccess: async () => {
+      await refresh();
+      toast.success("Cloned for the other platform.");
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Couldn't clone it."),
+  });
+  const btn =
+    "inline-flex items-center gap-1.5 rounded-lg border border-hairline px-2.5 py-1.5 text-xs transition-colors hover:bg-accent disabled:opacity-60";
+  const other = String(d.platform).toLowerCase() === "instagram" ? "linkedin" : "instagram";
+  return (
+    <>
+      <button onClick={() => send.mutate()} disabled={send.isPending} className={btn} title="Create this post in Postiz">
+        <Send className="size-3.5" /> Send to Postiz
+      </button>
+      <button onClick={() => queue.mutate()} disabled={queue.isPending} className={btn} title="Take the next free slot in your rhythm">
+        <Clock className="size-3.5" /> Queue
+      </button>
+      <button onClick={() => share.mutate()} disabled={share.isPending} className={btn} title="Public link the client can approve">
+        <Link2 className="size-3.5" /> {d.hasApprovalLink ? "Copy link" : "Ask client"}
+      </button>
+      <button onClick={() => variant.mutate(other)} disabled={variant.isPending} className={btn} title={`Clone this text for ${other}`}>
+        <Copy className="size-3.5" /> Clone {other === "linkedin" ? "LinkedIn" : "Instagram"}
+      </button>
+      <button
+        onClick={() => evergreen.mutate()}
+        disabled={evergreen.isPending}
+        className={cn(btn, d.evergreen && "border-ember/40 text-ember")}
+        title="Reuse this post later"
+      >
+        <Repeat className="size-3.5" /> {d.evergreen ? "Evergreen" : "Make evergreen"}
+      </button>
+      {d.evergreen ? (
+        <button onClick={() => recycle.mutate()} disabled={recycle.isPending} className={btn} title="Copy it back into the queue">
+          <RefreshCw className="size-3.5" /> Re-queue
+        </button>
+      ) : null}
+      {d.postizState ? (
+        <span className="inline-flex items-center rounded-full border border-hairline px-2 py-0.5 text-[11px] text-muted-foreground">
+          Postiz: {d.postizState}
+        </span>
+      ) : null}
+      {d.approvalState ? (
+        <span
+          className={cn(
+            "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px]",
+            d.approvalState === "approved" ? "border-ember/40 text-ember" : "border-hairline text-muted-foreground",
+          )}
+        >
+          client: {d.approvalState}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
 function SocialPage() {
   const [tab, setTab] = useState<"drafts" | "photos">("drafts");
 
@@ -100,7 +409,22 @@ function SocialPage() {
         </button>
       </div>
 
+      <SocialSettings />
+
       {tab === "drafts" ? <DraftsTab /> : <PhotosTab />}
+    </div>
+  );
+}
+
+/** Wrapper so the connected-state bar and the rhythm/hashtag panels sit together. */
+function SocialSettings() {
+  return (
+    <div className="space-y-3">
+      <PostizBar />
+      <div className="grid gap-3 md:grid-cols-2">
+        <RhythmPanel />
+        <HashtagPanel />
+      </div>
     </div>
   );
 }
@@ -428,6 +752,7 @@ function DraftsTab() {
                       Approve
                     </button>
                   ) : null}
+                  <DraftPostizActions d={d} />
                   <button
                     onClick={() => remove.mutate(d.id)}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-hairline px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent"
