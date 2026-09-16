@@ -309,47 +309,61 @@ function IntakeZone({ year }: { year: number }) {
     hasFile: boolean;
   };
 
-  /** Is this document already logged, in any of the three places? */
-  function findDuplicate(vendor: string, amount: number, dateISO: string): DupeHit | null {
+  /**
+   * Is this exact DOCUMENT already stored? This is the only sound duplicate test for
+   * money: two genuinely separate charges — two GoDaddy renewals days apart at $21.99
+   * for different websites — share a vendor and an amount and must both be kept, while
+   * the identical file must never be recorded twice.
+   */
+  function findSameDocument(hash: string): DupeHit | null {
+    if (!hash) return null;
+    const b = (allExpenses.data ?? []).find((r) => r.receiptHash === hash);
+    if (b)
+      return { bucket: "business", table: "expenses", id: b.id, vendor: b.vendor, amount: b.amount, dateISO: b.dateISO, hasFile: !!b.receiptFile };
+    const h = (allHousehold.data ?? []).find((r) => r.receiptHash === hash);
+    if (h)
+      return { bucket: "household", table: "household", id: h.id, vendor: h.vendor ?? "", amount: h.amount, dateISO: h.dateISO, hasFile: !!h.receiptFile };
+    const i = (allIncome.data ?? []).find((r) => r.receiptHash === hash);
+    if (i)
+      return { bucket: "income", table: "income", id: i.id, vendor: i.payer, amount: i.amount, dateISO: i.dateISO, hasFile: !!i.receiptFile };
+    return null;
+  }
+
+  /**
+   * A row that looks like this bill but never kept its receipt. Vendor + amount + date
+   * is acceptable HERE because the only follow-up is additive — attach the file to it.
+   * It is never used to refuse a filing, so a repeat charge can't be swallowed.
+   */
+  function findFilelessCandidate(vendor: string, amount: number, dateISO: string): DupeHit | null {
     const v = normalizeVendor(vendor);
     const t = Date.parse(`${dateISO}T12:00:00Z`);
     const near = (iso: string) => Math.abs(Date.parse(iso) - t) <= 3 * 86400000;
     const match = (name: string, amt: number, iso: string) =>
       normalizeVendor(name) === v && Math.abs(amt - amount) < 0.01 && near(iso);
-    const b = (allExpenses.data ?? []).find((r) => match(r.vendor, r.amount, r.dateISO));
+    const b = (allExpenses.data ?? []).find((r) => !r.receiptFile && match(r.vendor, r.amount, r.dateISO));
     if (b)
-      return {
-        bucket: "business",
-        table: "expenses",
-        id: b.id,
-        vendor: b.vendor,
-        amount: b.amount,
-        dateISO: b.dateISO,
-        hasFile: !!b.receiptFile,
-      };
-    const h = (allHousehold.data ?? []).find((r) => match(r.vendor ?? "", r.amount, r.dateISO));
+      return { bucket: "business", table: "expenses", id: b.id, vendor: b.vendor, amount: b.amount, dateISO: b.dateISO, hasFile: false };
+    const h = (allHousehold.data ?? []).find((r) => !r.receiptFile && match(r.vendor ?? "", r.amount, r.dateISO));
     if (h)
-      return {
-        bucket: "household",
-        table: "household",
-        id: h.id,
-        vendor: h.vendor ?? "",
-        amount: h.amount,
-        dateISO: h.dateISO,
-        hasFile: !!h.receiptFile,
-      };
-    const i = (allIncome.data ?? []).find((r) => match(r.payer, r.amount, r.dateISO));
+      return { bucket: "household", table: "household", id: h.id, vendor: h.vendor ?? "", amount: h.amount, dateISO: h.dateISO, hasFile: false };
+    const i = (allIncome.data ?? []).find((r) => !r.receiptFile && match(r.payer, r.amount, r.dateISO));
     if (i)
-      return {
-        bucket: "income",
-        table: "income",
-        id: i.id,
-        vendor: i.payer,
-        amount: i.amount,
-        dateISO: i.dateISO,
-        hasFile: !!i.receiptFile,
-      };
+      return { bucket: "income", table: "income", id: i.id, vendor: i.payer, amount: i.amount, dateISO: i.dateISO, hasFile: false };
     return null;
+  }
+
+  /** Give an existing row the receipt it never kept. Adjusts no amounts, adds no row. */
+  async function attachTo(hit: DupeHit, parsed: ReceiptAnalysis) {
+    if (!parsed.receiptFile) return;
+    try {
+      await attachReceipt(hit.table, hit.id, parsed.receiptFile, parsed.receiptName, parsed.receiptHash);
+      await qc.invalidateQueries({ queryKey: ["money"] });
+      toast.success(`Receipt attached to ${hit.vendor} · ${money(hit.amount)}`, {
+        description: `Filed against the existing ${labelFor(hit.bucket)} row dated ${hit.dateISO.slice(0, 10)} — nothing counted twice.`,
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't attach that receipt.");
+    }
   }
 
   function filed(bucket: IntakeBucket, id: string, vendor: string, amount: number) {
@@ -383,27 +397,25 @@ function IntakeZone({ year }: { year: number }) {
     const dateISO = parsed.dateISO || `${year}-12-31`;
 
     if (!force) {
-      const where = findDuplicate(vendor, amount, dateISO);
-      if (where) {
-        // The row is already there but never kept its receipt. This upload IS that
-        // receipt, so attach it to the existing row rather than filing a second one —
-        // and without a prompt, or re-uploading a year of bills means a dialog per bill.
-        if (!where.hasFile && parsed.receiptFile) {
-          try {
-            await attachReceipt(where.table, where.id, parsed.receiptFile, parsed.receiptName);
-            await qc.invalidateQueries({ queryKey: ["money"] });
-            toast.success(`Receipt attached to ${where.vendor} · ${money(where.amount)}`, {
-              description: `Filed against the existing ${labelFor(where.bucket)} row dated ${where.dateISO.slice(0, 10)} — nothing counted twice.`,
-            });
-          } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Couldn't attach that receipt.");
-          }
+      // 1. The same DOCUMENT is already stored — a real duplicate, never file it twice.
+      const same = findSameDocument(parsed.receiptHash ?? "");
+      if (same) {
+        if (!same.hasFile && parsed.receiptFile) {
+          await attachTo(same, parsed);
           return;
         }
-        toast(`Already in ${labelFor(where.bucket)} — skipped`, {
-          description: `${where.vendor} · ${money(where.amount)} on ${where.dateISO.slice(0, 10)} already has a receipt. Nothing was imported.`,
+        toast(`That document is already in ${labelFor(same.bucket)} — skipped`, {
+          description: `${same.vendor} · ${money(same.amount)} on ${same.dateISO.slice(0, 10)} already holds this exact receipt. Nothing was imported.`,
           action: { label: "Import anyway", onClick: () => void fileIt(parsed, true) },
         });
+        return;
+      }
+      // 2. A matching row that never kept its receipt — give it this file. Purely
+      //    additive, so a vendor+amount match is safe. A genuine second charge at the
+      //    same vendor and price is a DIFFERENT document and falls through to file.
+      const fileless = findFilelessCandidate(vendor, amount, dateISO);
+      if (fileless && parsed.receiptFile) {
+        await attachTo(fileless, parsed);
         return;
       }
     }
@@ -418,6 +430,7 @@ function IntakeZone({ year }: { year: number }) {
           notes: parsed.notes,
           source: "receipt-intake",
           receiptFile: parsed.receiptFile,
+          receiptHash: parsed.receiptHash,
         });
         filed(bucket, row.id, vendor, amount);
       } else if (bucket === "household") {
@@ -429,6 +442,7 @@ function IntakeZone({ year }: { year: number }) {
           homeOfficeEligible: true,
           source: "receipt-intake",
           receiptFile: parsed.receiptFile,
+          receiptHash: parsed.receiptHash,
         });
         filed(bucket, row.id, vendor, amount);
       } else {
@@ -440,6 +454,7 @@ function IntakeZone({ year }: { year: number }) {
           notes: parsed.notes,
           receiptName: parsed.receiptName,
           receiptFile: parsed.receiptFile,
+          receiptHash: parsed.receiptHash,
         });
         filed(bucket, row.id, vendor, amount);
       }

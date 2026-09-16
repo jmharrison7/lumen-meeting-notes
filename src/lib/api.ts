@@ -1811,6 +1811,7 @@ export interface IncomeInput {
   invoiceId?: string | undefined;
   source?: string | undefined;
   receiptFile?: string | undefined;
+  receiptHash?: string | undefined;
 }
 
 export async function listIncome(taxYear?: number): Promise<IncomeEntry[]> {
@@ -1852,11 +1853,12 @@ export async function attachReceipt(
   id: string,
   receiptFile: string,
   receiptName?: string,
+  receiptHash?: string,
 ): Promise<void> {
   if (BASE) {
     await http<{ ok: boolean }>("/money/receipts/attach", {
       method: "POST",
-      body: JSON.stringify({ table, id, receiptFile, receiptName }),
+      body: JSON.stringify({ table, id, receiptFile, receiptName, receiptHash }),
     });
     return;
   }
@@ -1923,6 +1925,7 @@ export interface HouseholdExpenseInput {
   homeOfficeEligible?: boolean | undefined;
   source?: string | undefined;
   receiptFile?: string | undefined;
+  receiptHash?: string | undefined;
 }
 
 export async function createHouseholdExpense(
@@ -2000,6 +2003,9 @@ export interface ReceiptAnalysis {
   householdCategory?: HouseholdCategory | undefined;
   /** The uploaded file, now stored on the server. */
   receiptFile?: string | undefined;
+  /** Content hash of that file. Identifies the DOCUMENT, so a genuine second charge at
+      the same vendor and price is not mistaken for a duplicate. */
+  receiptHash?: string | undefined;
 }
 
 /** Upload a receipt photo/PDF → Lumen reads it and returns parsed expense fields. */
@@ -2025,6 +2031,7 @@ export async function analyzeReceipt(file: File | Blob, name?: string): Promise<
       bucket: (j.bucket as IntakeBucket | undefined) ?? "business",
       householdCategory: (j.householdCategory as HouseholdCategory | undefined) || undefined,
       receiptFile: (j.receiptFile as string | undefined) || undefined,
+      receiptHash: (j.receiptHash as string | undefined) || undefined,
     };
   }
   await delay(900);

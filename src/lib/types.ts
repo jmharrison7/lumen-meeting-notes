@@ -336,6 +336,8 @@ export interface MoneyExpense {
   receiptPreview?: string | undefined;
   /** Stored file on the server; the receipt itself, not just its name. */
   receiptFile?: string | undefined;
+  /** Content hash of that file — two uploads of the same document match, real repeat charges never do. */
+  receiptHash?: string | undefined;
   source: "manual" | "email-auto";
   createdAtISO: string;
 }
@@ -367,6 +369,7 @@ export interface HouseholdExpense {
   homeOfficeEligible: boolean;
   receiptName?: string | undefined;
   receiptFile?: string | undefined;
+  receiptHash?: string | undefined;
   createdAtISO: string;
 }
 
@@ -406,6 +409,7 @@ export interface IncomeEntry {
   clientId?: string | undefined;
   invoiceId?: string | undefined;
   receiptFile?: string | undefined;
+  receiptHash?: string | undefined;
   source: string;
   createdAtISO: string;
 }
