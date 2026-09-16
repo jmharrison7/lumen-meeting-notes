@@ -33,6 +33,7 @@ import {
   listMoneyYears,
   normalizeVendor,
   updateHouseholdExpense,
+  updateIncome,
 } from "@/lib/api";
 import type { ReceiptAnalysis } from "@/lib/api";
 import { CATEGORIES, ExpenseDialog } from "@/components/lumen/ExpenseDialog";
@@ -51,6 +52,7 @@ import type {
   ExpenseCategory,
   HouseholdCategory,
   HouseholdExpense,
+  IncomeEntry,
   IntakeBucket,
   MoneyExpense,
   YearEndSummary,
@@ -191,6 +193,8 @@ function MoneyPage() {
         <Household year={year} />
       ) : tab === "Year-End" ? (
         <YearEnd rows={rows} year={year} loading={expenses.isLoading} />
+      ) : tab === "Receivables" ? (
+        <Receivables year={year} />
       ) : (
         <Placeholder tab={tab} />
       )}
@@ -1450,6 +1454,333 @@ function YearEnd({
         </p>
       </div>
     </div>
+  );
+}
+
+/**
+ * Money in — client payments and invoices issued. Mirrors the Household tab's
+ * shape so the two read the same way. There is no "who still owes you" view yet:
+ * money_income records what came in, and nothing in it marks a paid invoice.
+ */
+function Receivables({ year }: { year: number }) {
+  const qc = useQueryClient();
+  const [dialog, setDialog] = useState<{ open: boolean; row?: IncomeEntry | undefined }>({
+    open: false,
+  });
+  const [confirm, setConfirm] = useState<string | null>(null);
+
+  const rowsQ = useQuery({
+    queryKey: ["money", "income", year],
+    queryFn: () => listIncome(year),
+  });
+
+  const rows = rowsQ.data ?? [];
+  const total = rows.reduce((s, r) => s + r.amount, 0);
+  const payers = new Set(rows.map((r) => normalizeVendor(r.payer))).size;
+
+  const groups = useMemo(() => {
+    const m = new Map<string, IncomeEntry[]>();
+    for (const r of rows) {
+      const k = monthKey(r.dateISO);
+      m.set(k, [...(m.get(k) ?? []), r]);
+    }
+    return [...m.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  }, [rows]);
+
+  async function remove(id: string) {
+    await deleteIncome(id);
+    await qc.invalidateQueries({ queryKey: ["money"] });
+    setConfirm(null);
+    toast.success("Payment deleted.");
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h2 className="text-title text-xl font-semibold">{year} received</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {money(total)} across {rows.length} {rows.length === 1 ? "payment" : "payments"}
+          </p>
+        </div>
+        <button
+          onClick={() => setDialog({ open: true })}
+          className="rounded-lg bg-ember px-3.5 py-2 text-sm font-medium text-[oklch(0.99_0.005_85)]"
+        >
+          Log income
+        </button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-hairline bg-surface p-3">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            Received this year
+          </div>
+          <div className="text-title mt-1 text-lg font-semibold tabular-nums">{money(total)}</div>
+        </div>
+        <div className="rounded-xl border border-hairline bg-surface p-3">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            Payments logged
+          </div>
+          <div className="text-title mt-1 text-lg font-semibold tabular-nums">{rows.length}</div>
+        </div>
+        <div className="rounded-xl border border-hairline bg-surface p-3">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Payers</div>
+          <div className="text-title mt-1 text-lg font-semibold tabular-nums">{payers}</div>
+        </div>
+      </div>
+
+      {rowsQ.isLoading ? (
+        <SkeletonBlock />
+      ) : !groups.length ? (
+        <div className="rounded-xl border border-dashed border-hairline p-10 text-center">
+          <Wallet className="mx-auto size-6 text-muted-foreground" aria-hidden />
+          <p className="text-title mt-3 text-lg">No income logged for {year}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Payments received and invoices issued. Drop one on the Overview tab and it lands here.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {groups.map(([key, list]) => {
+            const subtotal = list.reduce((s, r) => s + r.amount, 0);
+            return (
+              <section key={key}>
+                <header className="flex items-baseline justify-between border-b border-hairline pb-1.5">
+                  <h3 className="text-title text-sm font-semibold">{monthLabel(key)}</h3>
+                  <span className="text-[12px] text-muted-foreground">{money(subtotal)}</span>
+                </header>
+                <ul className="divide-y divide-hairline">
+                  {list.map((r) => (
+                    <li key={r.id} className="flex flex-wrap items-center gap-3 py-2.5 text-sm">
+                      <span className="w-14 shrink-0 text-muted-foreground">
+                        {new Date(r.dateISO).toLocaleDateString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </span>
+                      <span className="min-w-32 flex-1 truncate font-medium">{r.payer}</span>
+                      <span className="rounded-full border border-hairline bg-surface px-2 py-0.5 text-[11px] text-muted-foreground">
+                        {r.category}
+                      </span>
+                      {r.invoiceId ? (
+                        <span className="rounded-full border border-hairline px-2 py-0.5 text-[11px] text-muted-foreground">
+                          #{r.invoiceId}
+                        </span>
+                      ) : null}
+                      <span className="w-24 text-right tabular-nums">{money(r.amount)}</span>
+                      <span className="flex gap-1">
+                        <button
+                          aria-label={`Edit ${r.payer}`}
+                          onClick={() => setDialog({ open: true, row: r })}
+                          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent"
+                        >
+                          <Pencil className="size-3.5" />
+                        </button>
+                        <button
+                          aria-label={`Delete ${r.payer}`}
+                          onClick={() => setConfirm(r.id)}
+                          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </span>
+                      {confirm === r.id ? (
+                        <span className="flex w-full items-center gap-2 rounded-md bg-accent px-2.5 py-1.5 text-[12px]">
+                          Delete this payment?
+                          <button
+                            onClick={() => void remove(r.id)}
+                            className="rounded-md bg-destructive px-2 py-0.5 text-destructive-foreground"
+                          >
+                            Delete
+                          </button>
+                          <button onClick={() => setConfirm(null)} className="underline">
+                            Keep it
+                          </button>
+                        </span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            );
+          })}
+        </div>
+      )}
+
+      <IncomeDialog
+        open={dialog.open}
+        onOpenChange={(v) => setDialog({ open: v })}
+        row={dialog.row}
+        defaultYear={year}
+      />
+    </div>
+  );
+}
+
+function IncomeDialog({
+  open,
+  onOpenChange,
+  row,
+  defaultYear,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  row?: IncomeEntry | undefined;
+  defaultYear: number;
+}) {
+  const qc = useQueryClient();
+  const [date, setDate] = useState("");
+  const [payer, setPayer] = useState("");
+  const [amount, setAmount] = useState("");
+  const [category, setCategory] = useState("Client project");
+  const [invoiceId, setInvoiceId] = useState("");
+  const [payment, setPayment] = useState("");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const today = new Date();
+    const initial =
+      defaultYear === today.getFullYear() ? today.toISOString().slice(0, 10) : `${defaultYear}-12-31`;
+    setDate(row ? row.dateISO.slice(0, 10) : initial);
+    setPayer(row?.payer ?? "");
+    setAmount(row ? row.amount.toFixed(2) : "");
+    setCategory(row?.category ?? "Client project");
+    setInvoiceId(row?.invoiceId ?? "");
+    setPayment(row?.payment ?? "");
+    setNotes(row?.notes ?? "");
+  }, [open, row, defaultYear]);
+
+  async function save() {
+    const amt = Number(amount);
+    if (!payer.trim()) {
+      toast.error("Who paid you?");
+      return;
+    }
+    if (!Number.isFinite(amt) || amt <= 0) {
+      toast.error("Add an amount.");
+      return;
+    }
+    setSaving(true);
+    const payload = {
+      dateISO: new Date(`${date}T12:00:00Z`).toISOString(),
+      payer: payer.trim(),
+      amount: Math.round(amt * 100) / 100,
+      category: category.trim() || "Client project",
+      invoiceId: invoiceId.trim() || undefined,
+      payment: payment.trim() || undefined,
+      notes: notes.trim() || undefined,
+    };
+    try {
+      if (row) await updateIncome(row.id, payload);
+      else await createIncome(payload);
+      await qc.invalidateQueries({ queryKey: ["money"] });
+      toast.success(row ? "Payment updated." : "Logged — money in.");
+      onOpenChange(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't save that.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const field =
+    "mt-1 min-h-[44px] w-full rounded-lg border border-hairline bg-surface px-3 text-sm";
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="text-title">{row ? "Edit payment" : "Log income"}</DialogTitle>
+          <DialogDescription>
+            Money you received — a client payment, or an invoice you issued.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <label className="block">
+            <span className="text-[12px] text-muted-foreground">Date</span>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={field} />
+          </label>
+          <label className="block">
+            <span className="text-[12px] text-muted-foreground">Paid by</span>
+            <input
+              value={payer}
+              onChange={(e) => setPayer(e.target.value)}
+              placeholder="Client or company"
+              className={field}
+            />
+          </label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="text-[12px] text-muted-foreground">Amount</span>
+              <input
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                inputMode="decimal"
+                placeholder="0.00"
+                className={`${field} tabular-nums`}
+              />
+            </label>
+            <label className="block">
+              <span className="text-[12px] text-muted-foreground">Type</span>
+              <input
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                placeholder="Client project"
+                className={field}
+              />
+            </label>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="text-[12px] text-muted-foreground">Invoice #</span>
+              <input
+                value={invoiceId}
+                onChange={(e) => setInvoiceId(e.target.value)}
+                placeholder="Optional"
+                className={field}
+              />
+            </label>
+            <label className="block">
+              <span className="text-[12px] text-muted-foreground">Payment</span>
+              <input
+                value={payment}
+                onChange={(e) => setPayment(e.target.value)}
+                placeholder="Reference or last 4"
+                className={field}
+              />
+            </label>
+          </div>
+          <label className="block">
+            <span className="text-[12px] text-muted-foreground">Notes</span>
+            <input
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Optional"
+              className={field}
+            />
+          </label>
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              onClick={() => onOpenChange(false)}
+              className="rounded-lg border border-hairline px-3.5 py-2 text-sm hover:bg-accent"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => void save()}
+              disabled={saving}
+              className="inline-flex items-center gap-2 rounded-lg bg-ember px-3.5 py-2 text-sm font-medium text-[oklch(0.99_0.005_85)] disabled:opacity-60"
+            >
+              {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+              {row ? "Save changes" : "Log income"}
+            </button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -1842,6 +1842,25 @@ export async function deleteIncome(id: string): Promise<void> {
   await delay(160);
 }
 
+export async function updateIncome(id: string, patch: Partial<IncomeInput>): Promise<IncomeEntry> {
+  if (BASE)
+    return http<IncomeEntry>(`/money/income/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+  await delay(200);
+  return {
+    id,
+    taxYear: new Date(patch.dateISO ?? new Date().toISOString()).getUTCFullYear(),
+    dateISO: patch.dateISO ?? new Date().toISOString(),
+    payer: patch.payer ?? "",
+    category: patch.category ?? "Client project",
+    amount: patch.amount ?? 0,
+    source: patch.source ?? "manual",
+    createdAtISO: new Date().toISOString(),
+  };
+}
+
 /**
  * The analyzer renders the same company several ways — "COMCAST" vs "Xfinity",
  * "Utility Payment" vs "City of Kent". Duplicate checks MUST compare on this,
