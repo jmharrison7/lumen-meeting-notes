@@ -1638,6 +1638,8 @@ import type {
   HomeOfficeSettings,
   HouseholdCategory,
   HouseholdExpense,
+  IncomeEntry,
+  IntakeBucket,
   MoneyExpense,
   YearEndSummary,
 } from "./types";
@@ -1794,6 +1796,67 @@ export async function getYearEndSummary(year: number): Promise<YearEndSummary> {
   };
 }
 
+/* ------------------------------------------------------------------ *
+ * Money received — receivables (see the /money/income routes)
+ * ------------------------------------------------------------------ */
+
+export interface IncomeInput {
+  dateISO: string;
+  payer: string;
+  amount: number;
+  category?: string | undefined;
+  payment?: string | undefined;
+  notes?: string | undefined;
+  clientId?: string | undefined;
+  invoiceId?: string | undefined;
+  source?: string | undefined;
+}
+
+export async function listIncome(taxYear?: number): Promise<IncomeEntry[]> {
+  if (BASE) return http<IncomeEntry[]>(`/money/income${taxYear ? `?year=${taxYear}` : ""}`);
+  await delay(160);
+  return [];
+}
+
+export async function createIncome(input: IncomeInput): Promise<IncomeEntry> {
+  if (BASE)
+    return http<IncomeEntry>("/money/income", { method: "POST", body: JSON.stringify(input) });
+  await delay(240);
+  return {
+    id: `in-${Date.now()}`,
+    taxYear: new Date(input.dateISO).getUTCFullYear(),
+    dateISO: input.dateISO,
+    payer: input.payer,
+    category: input.category ?? "Client project",
+    amount: input.amount,
+    source: input.source ?? "manual",
+    createdAtISO: new Date().toISOString(),
+  };
+}
+
+export async function deleteIncome(id: string): Promise<void> {
+  if (BASE) {
+    await http<{ ok: boolean }>(`/money/income/${id}`, { method: "DELETE" });
+    return;
+  }
+  await delay(160);
+}
+
+/**
+ * The analyzer renders the same company several ways — "COMCAST" vs "Xfinity",
+ * "Utility Payment" vs "City of Kent". Duplicate checks MUST compare on this,
+ * or the identical bill can be filed twice without the guard ever noticing.
+ */
+export function normalizeVendor(v: string): string {
+  return String(v || "")
+    .toLowerCase()
+    .replace(/^comcast$/, "xfinity")
+    .replace(/^(utility payment|utility company|scenic wy)$/, "city of kent")
+    .replace(/[^a-z0-9 ]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export interface HouseholdExpenseInput {
   dateISO: string;
   category: HouseholdCategory;
@@ -1872,6 +1935,10 @@ export interface ReceiptAnalysis {
   payment?: string;
   notes?: string;
   receiptName?: string;
+  /** Where the analyzer decided this belongs. */
+  bucket?: IntakeBucket | undefined;
+  /** Set when bucket is "household" — the home category it mapped to. */
+  householdCategory?: HouseholdCategory | undefined;
 }
 
 /** Upload a receipt photo/PDF → Lumen reads it and returns parsed expense fields. */
@@ -1891,7 +1958,12 @@ export async function analyzeReceipt(file: File | Blob, name?: string): Promise<
     }
     const j = await res.json().catch(() => ({ error: `Request failed: ${res.status}` }));
     if (!res.ok || !j?.fields) throw new Error(j?.error || `Request failed: ${res.status}`);
-    return j.fields as ReceiptAnalysis;
+    const parsed = j.fields as ReceiptAnalysis;
+    return {
+      ...parsed,
+      bucket: (j.bucket as IntakeBucket | undefined) ?? "business",
+      householdCategory: (j.householdCategory as HouseholdCategory | undefined) || undefined,
+    };
   }
   await delay(900);
   return {

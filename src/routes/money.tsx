@@ -19,14 +19,19 @@ import { toast } from "sonner";
 import {
   analyzeReceipt,
   createHouseholdExpense,
+  createIncome,
+  createMoneyExpense,
   deleteHouseholdExpense,
+  deleteIncome,
   deleteMoneyExpense,
   getHomeOfficeSettings,
   getYearEndSummary,
   listClients,
   listHouseholdExpenses,
+  listIncome,
   listMoneyExpenses,
   listMoneyYears,
+  normalizeVendor,
   updateHouseholdExpense,
 } from "@/lib/api";
 import type { ReceiptAnalysis } from "@/lib/api";
@@ -46,6 +51,7 @@ import type {
   ExpenseCategory,
   HouseholdCategory,
   HouseholdExpense,
+  IntakeBucket,
   MoneyExpense,
   YearEndSummary,
 } from "@/lib/types";
@@ -254,6 +260,195 @@ function YearSelector({
   );
 }
 
+/**
+ * The single intake point for money documents. Drop a receipt, a bill, or an
+ * invoice you issued; Lumen reads it, decides which pile it belongs to, and files
+ * it there — EMBR business expenses, Household, or Receivables (money in).
+ *
+ * Two guards matter. A utility or household bill never lands in business expenses
+ * (the server enforces that too, so no other client can bypass it), and a document
+ * that is already logged is skipped rather than filed twice — the duplicate check
+ * compares NORMALISED vendor names, because the analyzer renders the same company
+ * several ways and a raw comparison silently misses it.
+ */
+function IntakeZone({ year }: { year: number }) {
+  const qc = useQueryClient();
+  const [dragOver, setDragOver] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const allExpenses = useQuery({ queryKey: ["money", "all"], queryFn: () => listMoneyExpenses() });
+  const allHousehold = useQuery({
+    queryKey: ["money", "household", "all"],
+    queryFn: () => listHouseholdExpenses(),
+  });
+  const allIncome = useQuery({
+    queryKey: ["money", "income", "all"],
+    queryFn: () => listIncome(),
+  });
+
+  const labelFor = (b: IntakeBucket) =>
+    b === "household" ? "Household" : b === "income" ? "Receivables" : "Expenses";
+
+  /** Is this document already logged, in any of the three places? */
+  function findDuplicate(vendor: string, amount: number, dateISO: string): IntakeBucket | null {
+    const v = normalizeVendor(vendor);
+    const t = Date.parse(`${dateISO}T12:00:00Z`);
+    const near = (iso: string) => Math.abs(Date.parse(iso) - t) <= 3 * 86400000;
+    const match = (name: string, amt: number, iso: string) =>
+      normalizeVendor(name) === v && Math.abs(amt - amount) < 0.01 && near(iso);
+    if ((allExpenses.data ?? []).some((r) => match(r.vendor, r.amount, r.dateISO))) return "business";
+    if ((allHousehold.data ?? []).some((r) => match(r.vendor ?? "", r.amount, r.dateISO)))
+      return "household";
+    if ((allIncome.data ?? []).some((r) => match(r.payer, r.amount, r.dateISO))) return "income";
+    return null;
+  }
+
+  function filed(bucket: IntakeBucket, id: string, vendor: string, amount: number) {
+    void qc.invalidateQueries({ queryKey: ["money"] });
+    toast.success(`${vendor} · ${money(amount)} → ${labelFor(bucket)}`, {
+      description:
+        bucket === "household" ? "Filed with the house, home-office share included." : undefined,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          void (async () => {
+            try {
+              if (bucket === "household") await deleteHouseholdExpense(id);
+              else if (bucket === "income") await deleteIncome(id);
+              else await deleteMoneyExpense(id);
+              await qc.invalidateQueries({ queryKey: ["money"] });
+              toast.success("Removed.");
+            } catch (e) {
+              toast.error(e instanceof Error ? e.message : "Couldn't undo that.");
+            }
+          })();
+        },
+      },
+    });
+  }
+
+  async function fileIt(parsed: ReceiptAnalysis, force: boolean) {
+    const bucket = parsed.bucket ?? "business";
+    const vendor = (parsed.vendor || "").trim() || "Unknown";
+    const amount = Math.round(Number(parsed.amount) * 100) / 100;
+    const dateISO = parsed.dateISO || `${year}-12-31`;
+
+    if (!force) {
+      const where = findDuplicate(vendor, amount, dateISO);
+      if (where) {
+        toast(`Already in ${labelFor(where)} — skipped`, {
+          description: `${vendor} · ${money(amount)} on ${dateISO}. Nothing was imported.`,
+          action: { label: "Import anyway", onClick: () => void fileIt(parsed, true) },
+        });
+        return;
+      }
+    }
+
+    try {
+      if (bucket === "income") {
+        const row = await createIncome({
+          dateISO,
+          payer: vendor,
+          amount,
+          category: parsed.category,
+          notes: parsed.notes,
+          source: "receipt-intake",
+        });
+        filed(bucket, row.id, vendor, amount);
+      } else if (bucket === "household") {
+        const row = await createHouseholdExpense({
+          dateISO,
+          category: parsed.householdCategory ?? "Utilities",
+          vendor,
+          amount,
+          homeOfficeEligible: true,
+          source: "receipt-intake",
+        });
+        filed(bucket, row.id, vendor, amount);
+      } else {
+        const row = await createMoneyExpense({
+          dateISO,
+          vendor,
+          amount,
+          category: parsed.category,
+          notes: parsed.notes,
+          receiptName: parsed.receiptName,
+        });
+        filed(bucket, row.id, vendor, amount);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't file that one.");
+    }
+  }
+
+  async function handleFiles(files: File[]) {
+    const list = files.filter(Boolean);
+    if (!list.length) return;
+    setBusy(true);
+    try {
+      for (const f of list) {
+        try {
+          const parsed = { ...(await analyzeReceipt(f)), receiptName: f.name };
+          await fileIt(parsed, false);
+        } catch (e) {
+          toast.error(`${f.name}: ${e instanceof Error ? e.message : "couldn't read it."}`);
+        }
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false);
+        void handleFiles([...e.dataTransfer.files]);
+      }}
+      onClick={() => fileRef.current?.click()}
+      role="button"
+      aria-label="Upload a receipt, bill or invoice"
+      className={cn(
+        "flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed px-4 py-6 text-center transition-colors",
+        dragOver ? "border-ember/70 bg-ember/10" : "border-hairline bg-surface hover:border-ember/40",
+      )}
+    >
+      {busy ? (
+        <>
+          <Loader2 className="size-5 animate-spin text-ember" aria-hidden />
+          <span className="text-sm">Reading it…</span>
+        </>
+      ) : (
+        <>
+          <Upload className="size-5 text-ember" aria-hidden />
+          <span className="text-sm font-medium">Drop a receipt, bill or invoice here</span>
+          <span className="text-xs text-muted-foreground">
+            Lumen reads it and files it — business expenses, household, or money in.
+          </span>
+        </>
+      )}
+      <input
+        ref={fileRef}
+        type="file"
+        multiple
+        accept="image/*,application/pdf,.pdf"
+        className="sr-only"
+        onChange={(e) => {
+          void handleFiles([...(e.target.files ?? [])]);
+          e.target.value = "";
+        }}
+      />
+    </div>
+  );
+}
+
 function Overview({
   rows,
   year,
@@ -278,6 +473,10 @@ function Overview({
 
   return (
     <div className="grid gap-4 md:grid-cols-3">
+      <div className="md:col-span-3">
+        <IntakeZone year={year} />
+      </div>
+
       <div className="rounded-xl border border-hairline bg-surface p-5">
         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
           Expenses this year

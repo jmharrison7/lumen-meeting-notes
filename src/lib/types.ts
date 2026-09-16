@@ -345,6 +345,7 @@ export type HouseholdCategory =
   | "Internet"
   | "Garbage/Recycling"
   | "Gas"
+  | "Utilities"
   | "Mortgage Interest"
   | "Property Tax"
   | "Insurance"
@@ -383,6 +384,25 @@ export interface YearEndSummary {
   homeOfficePct: number | null;
   homeOfficeDeduction: number;
   netBusiness: number;
+}
+
+/** Where an uploaded document belongs: the business, the house, or money coming in. */
+export type IntakeBucket = "business" | "household" | "income";
+
+/** Money received — receivables. Mirrors the server's money_income table. */
+export interface IncomeEntry {
+  id: string;
+  taxYear: number;
+  dateISO: string;
+  payer: string;
+  category: string;
+  amount: number;
+  payment?: string | undefined;
+  notes?: string | undefined;
+  clientId?: string | undefined;
+  invoiceId?: string | undefined;
+  source: string;
+  createdAtISO: string;
 }
 
 

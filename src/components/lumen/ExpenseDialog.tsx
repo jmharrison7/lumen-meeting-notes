@@ -14,6 +14,7 @@ import {
   createMoneyExpense,
   listClients,
   listMoneyExpenses,
+  normalizeVendor,
   updateMoneyExpense,
 } from "@/lib/api";
 import type { ReceiptAnalysis } from "@/lib/api";
@@ -164,7 +165,7 @@ export function ExpenseDialog({
       (existing.data ?? []).find(
         (x) =>
           x.id !== expense?.id &&
-          x.vendor.toLowerCase() === vendor.trim().toLowerCase() &&
+          normalizeVendor(x.vendor) === normalizeVendor(vendor) &&
           Math.abs(x.amount - amt) < 0.01 &&
           daysApart(x.dateISO, iso) <= 3,
       ) ?? null
