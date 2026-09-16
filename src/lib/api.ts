@@ -1844,6 +1844,26 @@ export async function deleteIncome(id: string): Promise<void> {
 }
 
 /**
+ * Give an existing row its receipt back. Re-uploading a bill whose receipt was never
+ * kept must not create a second row for the same payment.
+ */
+export async function attachReceipt(
+  table: "expenses" | "household" | "income",
+  id: string,
+  receiptFile: string,
+  receiptName?: string,
+): Promise<void> {
+  if (BASE) {
+    await http<{ ok: boolean }>("/money/receipts/attach", {
+      method: "POST",
+      body: JSON.stringify({ table, id, receiptFile, receiptName }),
+    });
+    return;
+  }
+  await delay(140);
+}
+
+/**
  * The year-end downloads. These are browser navigations, not fetches: the file is
  * streamed by the server and the session cookie rides along, so the tab cannot
  * hold the bytes in memory first.

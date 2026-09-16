@@ -20,6 +20,7 @@ import {
 import { toast } from "sonner";
 import {
   analyzeReceipt,
+  attachReceipt,
   createHouseholdExpense,
   createIncome,
   createMoneyExpense,
@@ -298,17 +299,56 @@ function IntakeZone({ year }: { year: number }) {
   const labelFor = (b: IntakeBucket) =>
     b === "household" ? "Household" : b === "income" ? "Receivables" : "Expenses";
 
+  type DupeHit = {
+    bucket: IntakeBucket;
+    table: "expenses" | "household" | "income";
+    id: string;
+    vendor: string;
+    amount: number;
+    dateISO: string;
+    hasFile: boolean;
+  };
+
   /** Is this document already logged, in any of the three places? */
-  function findDuplicate(vendor: string, amount: number, dateISO: string): IntakeBucket | null {
+  function findDuplicate(vendor: string, amount: number, dateISO: string): DupeHit | null {
     const v = normalizeVendor(vendor);
     const t = Date.parse(`${dateISO}T12:00:00Z`);
     const near = (iso: string) => Math.abs(Date.parse(iso) - t) <= 3 * 86400000;
     const match = (name: string, amt: number, iso: string) =>
       normalizeVendor(name) === v && Math.abs(amt - amount) < 0.01 && near(iso);
-    if ((allExpenses.data ?? []).some((r) => match(r.vendor, r.amount, r.dateISO))) return "business";
-    if ((allHousehold.data ?? []).some((r) => match(r.vendor ?? "", r.amount, r.dateISO)))
-      return "household";
-    if ((allIncome.data ?? []).some((r) => match(r.payer, r.amount, r.dateISO))) return "income";
+    const b = (allExpenses.data ?? []).find((r) => match(r.vendor, r.amount, r.dateISO));
+    if (b)
+      return {
+        bucket: "business",
+        table: "expenses",
+        id: b.id,
+        vendor: b.vendor,
+        amount: b.amount,
+        dateISO: b.dateISO,
+        hasFile: !!b.receiptFile,
+      };
+    const h = (allHousehold.data ?? []).find((r) => match(r.vendor ?? "", r.amount, r.dateISO));
+    if (h)
+      return {
+        bucket: "household",
+        table: "household",
+        id: h.id,
+        vendor: h.vendor ?? "",
+        amount: h.amount,
+        dateISO: h.dateISO,
+        hasFile: !!h.receiptFile,
+      };
+    const i = (allIncome.data ?? []).find((r) => match(r.payer, r.amount, r.dateISO));
+    if (i)
+      return {
+        bucket: "income",
+        table: "income",
+        id: i.id,
+        vendor: i.payer,
+        amount: i.amount,
+        dateISO: i.dateISO,
+        hasFile: !!i.receiptFile,
+      };
     return null;
   }
 
@@ -345,8 +385,23 @@ function IntakeZone({ year }: { year: number }) {
     if (!force) {
       const where = findDuplicate(vendor, amount, dateISO);
       if (where) {
-        toast(`Already in ${labelFor(where)} — skipped`, {
-          description: `${vendor} · ${money(amount)} on ${dateISO}. Nothing was imported.`,
+        // The row is already there but never kept its receipt. This upload IS that
+        // receipt, so attach it to the existing row rather than filing a second one —
+        // and without a prompt, or re-uploading a year of bills means a dialog per bill.
+        if (!where.hasFile && parsed.receiptFile) {
+          try {
+            await attachReceipt(where.table, where.id, parsed.receiptFile, parsed.receiptName);
+            await qc.invalidateQueries({ queryKey: ["money"] });
+            toast.success(`Receipt attached to ${where.vendor} · ${money(where.amount)}`, {
+              description: `Filed against the existing ${labelFor(where.bucket)} row dated ${where.dateISO.slice(0, 10)} — nothing counted twice.`,
+            });
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Couldn't attach that receipt.");
+          }
+          return;
+        }
+        toast(`Already in ${labelFor(where.bucket)} — skipped`, {
+          description: `${where.vendor} · ${money(where.amount)} on ${where.dateISO.slice(0, 10)} already has a receipt. Nothing was imported.`,
           action: { label: "Import anyway", onClick: () => void fileIt(parsed, true) },
         });
         return;
