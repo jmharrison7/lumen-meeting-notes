@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
   ChevronDown,
+  Download,
   Home,
   Loader2,
   Paperclip,
@@ -21,6 +22,7 @@ import {
   deleteHouseholdExpense,
   deleteMoneyExpense,
   getHomeOfficeSettings,
+  getYearEndSummary,
   listClients,
   listHouseholdExpenses,
   listMoneyExpenses,
@@ -45,6 +47,7 @@ import type {
   HouseholdCategory,
   HouseholdExpense,
   MoneyExpense,
+  YearEndSummary,
 } from "@/lib/types";
 
 export const Route = createFileRoute("/money")({
@@ -180,6 +183,8 @@ function MoneyPage() {
         <Expenses rows={rows} year={year} total={total} loading={expenses.isLoading} />
       ) : tab === "Household" ? (
         <Household year={year} />
+      ) : tab === "Year-End" ? (
+        <YearEnd rows={rows} year={year} loading={expenses.isLoading} />
       ) : (
         <Placeholder tab={tab} />
       )}
@@ -1004,6 +1009,227 @@ function HouseholdDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function YearEnd({
+  rows,
+  year,
+  loading,
+}: {
+  rows: MoneyExpense[];
+  year: number;
+  loading: boolean;
+}) {
+  const summary = useQuery({
+    queryKey: ["money", "summary", year],
+    queryFn: () => getYearEndSummary(year),
+  });
+  const household = useQuery({
+    queryKey: ["money", "household", year],
+    queryFn: () => listHouseholdExpenses(year),
+  });
+
+  const hhRows = household.data ?? [];
+  const s = summary.data;
+
+  const bizRows = useMemo(() => {
+    const m = new Map<string, { total: number; count: number }>();
+    for (const r of rows) {
+      const cur = m.get(r.category) ?? { total: 0, count: 0 };
+      cur.total += r.amount;
+      cur.count += 1;
+      m.set(r.category, cur);
+    }
+    return [...m.entries()].sort((a, b) => b[1].total - a[1].total);
+  }, [rows]);
+
+  const homeRows = useMemo(() => {
+    const m = new Map<string, { total: number; count: number; eligible: number }>();
+    for (const r of hhRows) {
+      const cur = m.get(r.category) ?? { total: 0, count: 0, eligible: 0 };
+      cur.total += r.amount;
+      cur.count += 1;
+      if (r.homeOfficeEligible) cur.eligible += r.amount;
+      m.set(r.category, cur);
+    }
+    return [...m.entries()].sort((a, b) => b[1].total - a[1].total);
+  }, [hhRows]);
+
+  const pct = s?.homeOfficePct ?? null;
+  const incomeCount = s?.income.count ?? 0;
+  const withReceipt = rows.filter((r) => r.receiptName).length;
+
+  function exportCsv() {
+    const esc = (v: unknown) => {
+      const t = v === null || v === undefined ? "" : String(v);
+      return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+    };
+    const lines = ["table,date,category,vendor,amount,home_office_eligible,office_share"];
+    for (const r of rows)
+      lines.push(
+        ["business", r.dateISO.slice(0, 10), r.category, r.vendor, r.amount.toFixed(2), "", ""]
+          .map(esc)
+          .join(","),
+      );
+    for (const r of hhRows)
+      lines.push(
+        [
+          "household",
+          r.dateISO.slice(0, 10),
+          r.category,
+          r.vendor,
+          r.amount.toFixed(2),
+          r.homeOfficeEligible ? "yes" : "no",
+          r.homeOfficeEligible && pct ? (r.amount * pct).toFixed(2) : "",
+        ]
+          .map(esc)
+          .join(","),
+      );
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `lumen-${year}-year-end.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${rows.length + hhRows.length} rows for ${year}`);
+  }
+
+  if (loading || summary.isLoading || household.isLoading) return <SkeletonBlock />;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-title text-xl font-semibold">Year-end packet</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Everything {year} in one place — categories totalled and the office share worked out.
+          </p>
+        </div>
+        <button
+          onClick={exportCsv}
+          className="inline-flex min-h-[42px] items-center gap-2 rounded-lg border border-hairline px-4 text-sm font-medium transition-colors hover:bg-accent"
+        >
+          <Download className="size-4" /> Export CSV
+        </button>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-xl border border-hairline bg-surface p-5">
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            Business expenses
+          </p>
+          <p className="text-title mt-2 text-3xl font-semibold">
+            {money(s?.expenses.total ?? 0)}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {s?.expenses.count ?? 0} rows in {year}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-hairline bg-surface p-5">
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            Household, office-eligible
+          </p>
+          <p className="text-title mt-2 text-3xl font-semibold">
+            {money(s?.householdEligible.total ?? 0)}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {s?.householdEligible.count ?? 0} bills{pct ? ` × ${(pct * 100).toFixed(2)}%` : ""}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-ember/40 bg-surface p-5">
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            Home-office deduction
+          </p>
+          <p className="text-title mt-2 text-3xl font-semibold">
+            {money(s?.homeOfficeDeduction ?? 0)}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">the share of the house you claim</p>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-dashed border-hairline bg-surface p-5">
+        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Income</p>
+        {incomeCount ? (
+          <p className="mt-2 text-sm">
+            {money(s?.income.total ?? 0)} across {incomeCount} entries —{" "}
+            <span className="font-medium">net {money(s?.netBusiness ?? 0)}</span>
+          </p>
+        ) : (
+          <>
+            <p className="mt-2 text-sm">
+              <span className="font-medium">None recorded for {year}</span> — Lumen holds no income
+              rows for this year.
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              No net figure is shown until that is confirmed. The arithmetic would read as{" "}
+              {money(Math.abs(s?.netBusiness ?? 0))} out and nothing in, which only means something
+              if this really was an income-free year.
+            </p>
+          </>
+        )}
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-xl border border-hairline bg-surface p-5">
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            Business, by category
+          </p>
+          <ul className="mt-3 space-y-2.5">
+            {bizRows.length ? (
+              bizRows.map(([cat, v]) => (
+                <li key={cat}>
+                  <div className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="truncate">{cat}</span>
+                    <span className="shrink-0 text-muted-foreground">{money(v.total)}</span>
+                  </div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">{v.count} rows</div>
+                </li>
+              ))
+            ) : (
+              <li className="text-sm text-muted-foreground">Nothing logged for {year}.</li>
+            )}
+          </ul>
+        </div>
+
+        <div className="rounded-xl border border-hairline bg-surface p-5">
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            Household, by category
+          </p>
+          <ul className="mt-3 space-y-2.5">
+            {homeRows.length ? (
+              homeRows.map(([cat, v]) => (
+                <li key={cat}>
+                  <div className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="truncate">{cat}</span>
+                    <span className="shrink-0 text-muted-foreground">{money(v.total)}</span>
+                  </div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">
+                    {v.count} bills{pct ? ` · office ${money(v.eligible * pct)}` : ""}
+                  </div>
+                </li>
+              ))
+            ) : (
+              <li className="text-sm text-muted-foreground">No household bills for {year}.</li>
+            )}
+          </ul>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-hairline bg-surface p-5">
+        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Receipts</p>
+        <p className="mt-2 text-sm">
+          {withReceipt} of {rows.length} business rows have a receipt attached.
+        </p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          The CSV carries the figures. Bundling the receipt files themselves into one download needs
+          a server-side export, which is not built yet.
+        </p>
+      </div>
+    </div>
   );
 }
 

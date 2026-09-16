@@ -1639,6 +1639,7 @@ import type {
   HouseholdCategory,
   HouseholdExpense,
   MoneyExpense,
+  YearEndSummary,
 } from "./types";
 
 const MONEY_KEY = "lumen.money.expenses.v1";
@@ -1773,6 +1774,24 @@ export async function getHomeOfficeSettings(): Promise<HomeOfficeSettings> {
   if (BASE) return http<HomeOfficeSettings>("/money/household/settings");
   await delay(120);
   return { homeOfficePct: null, note: "" };
+}
+
+/**
+ * The year-end rollup. The server owns these figures — including the home-office
+ * deduction — so the packet can never disagree with the Household tab.
+ */
+export async function getYearEndSummary(year: number): Promise<YearEndSummary> {
+  if (BASE) return http<YearEndSummary>(`/money/summary/${year}`);
+  await delay(180);
+  return {
+    year,
+    income: { total: 0, count: 0 },
+    expenses: { total: 0, count: 0 },
+    householdEligible: { total: 0, count: 0 },
+    homeOfficePct: null,
+    homeOfficeDeduction: 0,
+    netBusiness: 0,
+  };
 }
 
 export interface HouseholdExpenseInput {

@@ -371,6 +371,20 @@ export interface HomeOfficeSettings {
   note: string;
 }
 
+/**
+ * One tax year, totalled — what the Year-End tab hands to an accountant.
+ * Served by /money/summary/:year, so the packet always agrees with the tabs.
+ */
+export interface YearEndSummary {
+  year: number;
+  income: { total: number; count: number };
+  expenses: { total: number; count: number };
+  householdEligible: { total: number; count: number };
+  homeOfficePct: number | null;
+  homeOfficeDeduction: number;
+  netBusiness: number;
+}
+
 
 /* ------------------------------------------------------------------ *
  * Social drafts — drafted in Lumen, published from Postiz
