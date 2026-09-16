@@ -338,6 +338,39 @@ export interface MoneyExpense {
   createdAtISO: string;
 }
 
+/** Household bill categories. Mirrors HOUSEHOLD_CATS on the server. */
+export type HouseholdCategory =
+  | "Electricity"
+  | "Water/Sewer"
+  | "Internet"
+  | "Garbage/Recycling"
+  | "Gas"
+  | "Mortgage Interest"
+  | "Property Tax"
+  | "Insurance"
+  | "Repairs/Maintenance"
+  | "Home Office"
+  | "Other";
+
+/** A bill for the home. When `homeOfficeEligible`, the home-office % applies to it. */
+export interface HouseholdExpense {
+  id: string;
+  taxYear: number;
+  dateISO: string;
+  category: HouseholdCategory;
+  vendor: string;
+  amount: number;
+  source: string;
+  homeOfficeEligible: boolean;
+  createdAtISO: string;
+}
+
+/** The studio's home-office percentage, held in the server's meta table. */
+export interface HomeOfficeSettings {
+  homeOfficePct: number | null;
+  note: string;
+}
+
 
 /* ------------------------------------------------------------------ *
  * Social drafts — drafted in Lumen, published from Postiz

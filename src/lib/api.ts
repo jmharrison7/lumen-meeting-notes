@@ -1633,7 +1633,13 @@ export async function signOut(): Promise<void> {
 /* ----------------------------------- Money ----------------------------------- */
 
 import { seedExpenses } from "./money-mock";
-import type { ExpenseCategory, MoneyExpense } from "./types";
+import type {
+  ExpenseCategory,
+  HomeOfficeSettings,
+  HouseholdCategory,
+  HouseholdExpense,
+  MoneyExpense,
+} from "./types";
 
 const MONEY_KEY = "lumen.money.expenses.v1";
 let expenses: MoneyExpense[] | null = null;
@@ -1726,6 +1732,117 @@ export async function deleteMoneyExpense(id: string): Promise<void> {
   const i = list.findIndex((x) => x.id === id);
   if (i >= 0) list.splice(i, 1);
   persistExpenses();
+}
+
+/* ------------------------------------------------------------------ *
+ * Household bills — the home-office split (see /money/household routes)
+ * ------------------------------------------------------------------ */
+
+const HOUSEHOLD_KEY = "lumen.money.household";
+let household: HouseholdExpense[] | null = null;
+
+function loadHousehold(): HouseholdExpense[] {
+  if (household) return household;
+  if (typeof window === "undefined") return (household = []);
+  try {
+    const raw = window.localStorage.getItem(HOUSEHOLD_KEY);
+    household = raw ? (JSON.parse(raw) as HouseholdExpense[]) : [];
+  } catch {
+    household = [];
+  }
+  return household;
+}
+
+function persistHousehold() {
+  if (typeof window === "undefined" || !household) return;
+  window.localStorage.setItem(HOUSEHOLD_KEY, JSON.stringify(household));
+}
+
+const byDateDescHousehold = (a: HouseholdExpense, b: HouseholdExpense) =>
+  b.dateISO.localeCompare(a.dateISO);
+
+export async function listHouseholdExpenses(taxYear?: number): Promise<HouseholdExpense[]> {
+  if (BASE) return http<HouseholdExpense[]>(`/money/household${taxYear ? `?year=${taxYear}` : ""}`);
+  await delay(200);
+  const all = loadHousehold().filter((x) => (taxYear ? x.taxYear === taxYear : true));
+  return clone([...all].sort(byDateDescHousehold));
+}
+
+/** The home-office percentage the studio claims, plus the note explaining it. */
+export async function getHomeOfficeSettings(): Promise<HomeOfficeSettings> {
+  if (BASE) return http<HomeOfficeSettings>("/money/household/settings");
+  await delay(120);
+  return { homeOfficePct: null, note: "" };
+}
+
+export interface HouseholdExpenseInput {
+  dateISO: string;
+  category: HouseholdCategory;
+  vendor?: string | undefined;
+  amount: number;
+  homeOfficeEligible?: boolean | undefined;
+  source?: string | undefined;
+}
+
+export async function createHouseholdExpense(
+  input: HouseholdExpenseInput,
+): Promise<HouseholdExpense> {
+  if (BASE)
+    return http<HouseholdExpense>("/money/household", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  await delay(240);
+  const row: HouseholdExpense = {
+    id: `hh-${Date.now()}`,
+    taxYear: new Date(input.dateISO).getUTCFullYear(),
+    dateISO: input.dateISO,
+    category: input.category,
+    vendor: input.vendor ?? "",
+    amount: input.amount,
+    source: input.source ?? "manual",
+    homeOfficeEligible: input.homeOfficeEligible ?? true,
+    createdAtISO: new Date().toISOString(),
+  };
+  loadHousehold().unshift(row);
+  persistHousehold();
+  return clone(row);
+}
+
+export async function updateHouseholdExpense(
+  id: string,
+  patch: Partial<HouseholdExpenseInput>,
+): Promise<HouseholdExpense> {
+  if (BASE)
+    return http<HouseholdExpense>(`/money/household/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+  await delay(180);
+  const row = loadHousehold().find((x) => x.id === id);
+  if (!row) throw new Error("Household expense not found");
+  if (patch.dateISO !== undefined) {
+    row.dateISO = patch.dateISO;
+    row.taxYear = new Date(patch.dateISO).getUTCFullYear();
+  }
+  if (patch.category !== undefined) row.category = patch.category;
+  if (patch.vendor !== undefined) row.vendor = patch.vendor;
+  if (patch.amount !== undefined) row.amount = patch.amount;
+  if (patch.homeOfficeEligible !== undefined) row.homeOfficeEligible = patch.homeOfficeEligible;
+  persistHousehold();
+  return clone(row);
+}
+
+export async function deleteHouseholdExpense(id: string): Promise<void> {
+  if (BASE) {
+    await http<void>(`/money/household/${id}`, { method: "DELETE" });
+    return;
+  }
+  await delay(160);
+  const list = loadHousehold();
+  const i = list.findIndex((x) => x.id === id);
+  if (i >= 0) list.splice(i, 1);
+  persistHousehold();
 }
 
 export interface ReceiptAnalysis {

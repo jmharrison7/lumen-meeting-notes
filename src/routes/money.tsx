@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
@@ -17,18 +17,35 @@ import {
 import { toast } from "sonner";
 import {
   analyzeReceipt,
+  createHouseholdExpense,
+  deleteHouseholdExpense,
   deleteMoneyExpense,
+  getHomeOfficeSettings,
   listClients,
+  listHouseholdExpenses,
   listMoneyExpenses,
   listMoneyYears,
+  updateHouseholdExpense,
 } from "@/lib/api";
 import type { ReceiptAnalysis } from "@/lib/api";
 import { CATEGORIES, ExpenseDialog } from "@/components/lumen/ExpenseDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useAccess } from "@/lib/access-store";
 import { useScope } from "@/lib/scope-store";
-import type { ExpenseCategory, MoneyExpense } from "@/lib/types";
+import type {
+  ExpenseCategory,
+  HouseholdCategory,
+  HouseholdExpense,
+  MoneyExpense,
+} from "@/lib/types";
 
 export const Route = createFileRoute("/money")({
   head: () => ({
@@ -161,6 +178,8 @@ function MoneyPage() {
         />
       ) : tab === "Expenses" ? (
         <Expenses rows={rows} year={year} total={total} loading={expenses.isLoading} />
+      ) : tab === "Household" ? (
+        <Household year={year} />
       ) : (
         <Placeholder tab={tab} />
       )}
@@ -636,12 +655,359 @@ function Expenses({
   );
 }
 
+/** Household bill categories. Mirrors HOUSEHOLD_CATS on the server. */
+export const HOUSEHOLD_CATS: HouseholdCategory[] = [
+  "Electricity",
+  "Water/Sewer",
+  "Internet",
+  "Garbage/Recycling",
+  "Gas",
+  "Mortgage Interest",
+  "Property Tax",
+  "Insurance",
+  "Repairs/Maintenance",
+  "Home Office",
+  "Other",
+];
+
+/**
+ * Household bills — the other half of Money. Each row can be flagged home-office
+ * eligible, and the studio's percentage (from the server's meta table) turns the
+ * eligible total into the figure the accountant needs.
+ */
+function Household({ year }: { year: number }) {
+  const qc = useQueryClient();
+  const [dialog, setDialog] = useState<{ open: boolean; row?: HouseholdExpense | undefined }>({
+    open: false,
+  });
+  const [confirm, setConfirm] = useState<string | null>(null);
+
+  const rowsQ = useQuery({
+    queryKey: ["money", "household", year],
+    queryFn: () => listHouseholdExpenses(year),
+  });
+  const settingsQ = useQuery({
+    queryKey: ["money", "household", "settings"],
+    queryFn: getHomeOfficeSettings,
+  });
+
+  const rows = rowsQ.data ?? [];
+  const pct = settingsQ.data?.homeOfficePct ?? null;
+  const total = rows.reduce((s, r) => s + r.amount, 0);
+  const eligible = rows.filter((r) => r.homeOfficeEligible).reduce((s, r) => s + r.amount, 0);
+  const deductible = pct == null ? null : eligible * pct;
+  const pctLabel = pct == null ? "" : `${(pct * 100).toFixed(2)}%`;
+
+  const groups = useMemo(() => {
+    const m = new Map<string, HouseholdExpense[]>();
+    for (const r of rows) {
+      const k = monthKey(r.dateISO);
+      m.set(k, [...(m.get(k) ?? []), r]);
+    }
+    return [...m.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  }, [rows]);
+
+  async function remove(id: string) {
+    await deleteHouseholdExpense(id);
+    await qc.invalidateQueries({ queryKey: ["money"] });
+    setConfirm(null);
+    toast.success("Household expense deleted.");
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h2 className="text-title text-xl font-semibold">{year} household</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {money(total)} across {rows.length} {rows.length === 1 ? "bill" : "bills"}
+          </p>
+        </div>
+        <button
+          onClick={() => setDialog({ open: true })}
+          className="rounded-lg bg-ember px-3.5 py-2 text-sm font-medium text-[oklch(0.99_0.005_85)]"
+        >
+          Log expense
+        </button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-hairline bg-surface p-3">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            Household total
+          </div>
+          <div className="text-title mt-1 text-lg font-semibold tabular-nums">{money(total)}</div>
+        </div>
+        <div className="rounded-xl border border-hairline bg-surface p-3">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            Home-office eligible
+          </div>
+          <div className="text-title mt-1 text-lg font-semibold tabular-nums">{money(eligible)}</div>
+        </div>
+        <div className="rounded-xl border border-ember/40 bg-ember/10 p-3">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            Deductible {pctLabel ? `(${pctLabel})` : ""}
+          </div>
+          <div className="text-title mt-1 text-lg font-semibold tabular-nums">
+            {deductible == null ? "—" : money(deductible)}
+          </div>
+        </div>
+      </div>
+
+      {settingsQ.data?.note ? (
+        <p className="text-[12px] text-muted-foreground">{settingsQ.data.note}</p>
+      ) : null}
+
+      {rowsQ.isLoading ? (
+        <SkeletonBlock />
+      ) : !groups.length ? (
+        <div className="rounded-xl border border-dashed border-hairline p-10 text-center">
+          <Home className="mx-auto size-6 text-muted-foreground" aria-hidden />
+          <p className="text-title mt-3 text-lg">No household bills yet</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Power, internet, interest, property tax — anything the home-office share applies to.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {groups.map(([key, list]) => {
+            const subtotal = list.reduce((s, r) => s + r.amount, 0);
+            return (
+              <section key={key}>
+                <header className="flex items-baseline justify-between border-b border-hairline pb-1.5">
+                  <h3 className="text-title text-sm font-semibold">{monthLabel(key)}</h3>
+                  <span className="text-[12px] text-muted-foreground">{money(subtotal)}</span>
+                </header>
+                <ul className="divide-y divide-hairline">
+                  {list.map((r) => (
+                    <li key={r.id} className="flex flex-wrap items-center gap-3 py-2.5 text-sm">
+                      <span className="w-14 shrink-0 text-muted-foreground">
+                        {new Date(r.dateISO).toLocaleDateString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </span>
+                      <span className="min-w-32 flex-1 truncate font-medium">
+                        {r.vendor || r.category}
+                      </span>
+                      <span className="rounded-full border border-hairline bg-surface px-2 py-0.5 text-[11px] text-muted-foreground">
+                        {r.category}
+                      </span>
+                      {r.homeOfficeEligible ? (
+                        <span className="rounded-full border border-ember/40 bg-ember/10 px-2 py-0.5 text-[11px] text-ember">
+                          office{pctLabel ? ` ${pctLabel}` : ""}
+                        </span>
+                      ) : (
+                        <span className="rounded-full border border-hairline px-2 py-0.5 text-[11px] text-muted-foreground">
+                          not claimed
+                        </span>
+                      )}
+                      <span className="w-24 text-right tabular-nums">{money(r.amount)}</span>
+                      <span className="flex gap-1">
+                        <button
+                          aria-label={`Edit ${r.vendor || r.category}`}
+                          onClick={() => setDialog({ open: true, row: r })}
+                          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent"
+                        >
+                          <Pencil className="size-3.5" />
+                        </button>
+                        <button
+                          aria-label={`Delete ${r.vendor || r.category}`}
+                          onClick={() => setConfirm(r.id)}
+                          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </span>
+                      {confirm === r.id ? (
+                        <span className="flex w-full items-center gap-2 rounded-md bg-accent px-2.5 py-1.5 text-[12px]">
+                          Delete this expense?
+                          <button
+                            onClick={() => void remove(r.id)}
+                            className="rounded-md bg-destructive px-2 py-0.5 text-destructive-foreground"
+                          >
+                            Delete
+                          </button>
+                          <button onClick={() => setConfirm(null)} className="underline">
+                            Keep it
+                          </button>
+                        </span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            );
+          })}
+        </div>
+      )}
+
+      <HouseholdDialog
+        open={dialog.open}
+        onOpenChange={(v) => setDialog({ open: v })}
+        row={dialog.row}
+        defaultYear={year}
+      />
+    </div>
+  );
+}
+
+function HouseholdDialog({
+  open,
+  onOpenChange,
+  row,
+  defaultYear,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  row?: HouseholdExpense | undefined;
+  defaultYear: number;
+}) {
+  const qc = useQueryClient();
+  const [date, setDate] = useState(`${defaultYear}-12-31`);
+  const [category, setCategory] = useState<HouseholdCategory>("Electricity");
+  const [vendor, setVendor] = useState("");
+  const [amount, setAmount] = useState("");
+  const [eligible, setEligible] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setDate(row ? row.dateISO.slice(0, 10) : `${defaultYear}-12-31`);
+    setCategory(row?.category ?? "Electricity");
+    setVendor(row?.vendor ?? "");
+    setAmount(row ? String(row.amount) : "");
+    setEligible(row ? row.homeOfficeEligible : true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, row?.id]);
+
+  async function save() {
+    const amt = Number(amount);
+    if (!date) {
+      toast.error("Pick a date.");
+      return;
+    }
+    if (!Number.isFinite(amt) || amt <= 0) {
+      toast.error("Add an amount.");
+      return;
+    }
+    setSaving(true);
+    const payload = {
+      dateISO: new Date(`${date}T12:00:00Z`).toISOString(),
+      category,
+      vendor: vendor.trim(),
+      amount: Math.round(amt * 100) / 100,
+      homeOfficeEligible: eligible,
+    };
+    try {
+      if (row) await updateHouseholdExpense(row.id, payload);
+      else await createHouseholdExpense(payload);
+      await qc.invalidateQueries({ queryKey: ["money"] });
+      toast.success(row ? "Household bill updated." : "Household bill logged.");
+      onOpenChange(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't save that.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-title">
+            {row ? "Edit household expense" : "Log household expense"}
+          </DialogTitle>
+          <DialogDescription>
+            Bills for the home. Anything marked eligible gets the home-office percentage applied.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Date
+              </span>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="mt-1 min-h-[44px] w-full rounded-lg border border-hairline bg-surface px-3 text-sm"
+              />
+            </label>
+            <label className="block">
+              <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Amount
+              </span>
+              <input
+                inputMode="decimal"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                className="mt-1 min-h-[44px] w-full rounded-lg border border-hairline bg-surface px-3 text-sm"
+              />
+            </label>
+          </div>
+          <label className="block">
+            <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              Category
+            </span>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value as HouseholdCategory)}
+              className="mt-1 h-11 w-full rounded-lg border border-hairline bg-card px-2.5 text-sm"
+            >
+              {HOUSEHOLD_CATS.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              Paid to
+            </span>
+            <input
+              value={vendor}
+              onChange={(e) => setVendor(e.target.value)}
+              placeholder="Puget Sound Energy, Navy Federal…"
+              className="mt-1 min-h-[44px] w-full rounded-lg border border-hairline bg-surface px-3 text-sm"
+            />
+          </label>
+          <label className="flex items-center gap-2.5 rounded-lg border border-hairline bg-surface px-3 py-3">
+            <input
+              type="checkbox"
+              checked={eligible}
+              onChange={(e) => setEligible(e.target.checked)}
+              className="size-4"
+            />
+            <span className="text-sm">Home-office eligible — apply the percentage</span>
+          </label>
+          <div className="flex gap-2">
+            <button
+              onClick={() => void save()}
+              disabled={saving}
+              className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg bg-ember px-4 text-sm font-medium text-[oklch(0.99_0.005_85)] disabled:opacity-60"
+            >
+              {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+              {row ? "Save changes" : "Log it"}
+            </button>
+            <button
+              onClick={() => onOpenChange(false)}
+              className="inline-flex min-h-[44px] items-center rounded-lg border border-hairline px-4 text-sm"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 const placeholderCopy: Record<string, { icon: typeof Home; title: string; body: string }> = {
-  Household: {
-    icon: Home,
-    title: "Household expenses arrive in a later build",
-    body: "Rent, power, internet — your home-office deduction will assemble itself here.",
-  },
   Receivables: {
     icon: Wallet,
     title: "Receivables arrive in a later build",
