@@ -2,9 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Archive,
   Check,
   ChevronDown,
   Download,
+  FileSpreadsheet,
   Home,
   Loader2,
   Paperclip,
@@ -34,6 +36,8 @@ import {
   normalizeVendor,
   updateHouseholdExpense,
   updateIncome,
+  yearBundleUrl,
+  yearWorkbookUrl,
 } from "@/lib/api";
 import type { ReceiptAnalysis } from "@/lib/api";
 import { CATEGORIES, ExpenseDialog } from "@/components/lumen/ExpenseDialog";
@@ -358,6 +362,7 @@ function IntakeZone({ year }: { year: number }) {
           category: parsed.category,
           notes: parsed.notes,
           source: "receipt-intake",
+          receiptFile: parsed.receiptFile,
         });
         filed(bucket, row.id, vendor, amount);
       } else if (bucket === "household") {
@@ -368,6 +373,7 @@ function IntakeZone({ year }: { year: number }) {
           amount,
           homeOfficeEligible: true,
           source: "receipt-intake",
+          receiptFile: parsed.receiptFile,
         });
         filed(bucket, row.id, vendor, amount);
       } else {
@@ -378,6 +384,7 @@ function IntakeZone({ year }: { year: number }) {
           category: parsed.category,
           notes: parsed.notes,
           receiptName: parsed.receiptName,
+          receiptFile: parsed.receiptFile,
         });
         filed(bucket, row.id, vendor, amount);
       }
@@ -1282,7 +1289,9 @@ function YearEnd({
 
   const pct = s?.homeOfficePct ?? null;
   const incomeCount = s?.income.count ?? 0;
-  const withReceipt = rows.filter((r) => r.receiptName).length;
+  const withReceipt = rows.filter((r) => r.receiptFile).length;
+  const hhWithReceipt = hhRows.filter((r) => r.receiptFile).length;
+  const storedFiles = withReceipt + hhWithReceipt;
 
   function exportCsv() {
     const esc = (v: unknown) => {
@@ -1331,12 +1340,30 @@ function YearEnd({
             Everything {year} in one place — categories totalled and the office share worked out.
           </p>
         </div>
-        <button
-          onClick={exportCsv}
-          className="inline-flex min-h-[42px] items-center gap-2 rounded-lg border border-hairline px-4 text-sm font-medium transition-colors hover:bg-accent"
-        >
-          <Download className="size-4" /> Export CSV
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => {
+              window.location.href = yearBundleUrl(year);
+            }}
+            className="inline-flex min-h-[42px] items-center gap-2 rounded-lg bg-ember px-4 text-sm font-medium text-[oklch(0.99_0.005_85)] transition-opacity hover:opacity-90"
+          >
+            <Archive className="size-4" /> Download .zip
+          </button>
+          <button
+            onClick={() => {
+              window.location.href = yearWorkbookUrl(year);
+            }}
+            className="inline-flex min-h-[42px] items-center gap-2 rounded-lg border border-hairline px-4 text-sm font-medium transition-colors hover:bg-accent"
+          >
+            <FileSpreadsheet className="size-4" /> Excel
+          </button>
+          <button
+            onClick={exportCsv}
+            className="inline-flex min-h-[42px] items-center gap-2 rounded-lg border border-hairline px-4 text-sm font-medium transition-colors hover:bg-accent"
+          >
+            <Download className="size-4" /> CSV
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -1444,13 +1471,17 @@ function YearEnd({
       </div>
 
       <div className="rounded-xl border border-hairline bg-surface p-5">
-        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Receipts</p>
+        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+          The packet for your preparer
+        </p>
         <p className="mt-2 text-sm">
-          {withReceipt} of {rows.length} business rows have a receipt attached.
+          {storedFiles} receipt {storedFiles === 1 ? "file" : "files"} stored for {year} (
+          {withReceipt} business, {hhWithReceipt} household).
         </p>
         <p className="mt-1 text-sm text-muted-foreground">
-          The CSV carries the figures. Bundling the receipt files themselves into one download needs
-          a server-side export, which is not built yet.
+          The .zip holds every stored receipt filed by folder, an index.csv of what is included, and
+          the Excel workbook with the totals. Rows whose receipt was never captured show a blank
+          receipt column in the index.
         </p>
       </div>
     </div>

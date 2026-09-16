@@ -334,6 +334,8 @@ export interface MoneyExpense {
   clientId?: string | undefined;
   receiptName?: string | undefined;
   receiptPreview?: string | undefined;
+  /** Stored file on the server; the receipt itself, not just its name. */
+  receiptFile?: string | undefined;
   source: "manual" | "email-auto";
   createdAtISO: string;
 }
@@ -363,6 +365,8 @@ export interface HouseholdExpense {
   amount: number;
   source: string;
   homeOfficeEligible: boolean;
+  receiptName?: string | undefined;
+  receiptFile?: string | undefined;
   createdAtISO: string;
 }
 
@@ -401,6 +405,7 @@ export interface IncomeEntry {
   notes?: string | undefined;
   clientId?: string | undefined;
   invoiceId?: string | undefined;
+  receiptFile?: string | undefined;
   source: string;
   createdAtISO: string;
 }

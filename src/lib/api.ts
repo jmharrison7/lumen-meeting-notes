@@ -1810,6 +1810,7 @@ export interface IncomeInput {
   clientId?: string | undefined;
   invoiceId?: string | undefined;
   source?: string | undefined;
+  receiptFile?: string | undefined;
 }
 
 export async function listIncome(taxYear?: number): Promise<IncomeEntry[]> {
@@ -1842,6 +1843,24 @@ export async function deleteIncome(id: string): Promise<void> {
   await delay(160);
 }
 
+/**
+ * The year-end downloads. These are browser navigations, not fetches: the file is
+ * streamed by the server and the session cookie rides along, so the tab cannot
+ * hold the bytes in memory first.
+ */
+export function yearBundleUrl(year: number): string {
+  return `${BASE ?? ""}/money/receipts/zip?year=${year}`;
+}
+
+export function yearWorkbookUrl(year: number): string {
+  return `${BASE ?? ""}/money/receipts/xlsx?year=${year}`;
+}
+
+/** A stored receipt by its server filename. */
+export function receiptFileUrl(file: string): string {
+  return `${BASE ?? ""}/money/receipts/file/${encodeURIComponent(file)}`;
+}
+
 export async function updateIncome(id: string, patch: Partial<IncomeInput>): Promise<IncomeEntry> {
   if (BASE)
     return http<IncomeEntry>(`/money/income/${id}`, {
@@ -1862,7 +1881,7 @@ export async function updateIncome(id: string, patch: Partial<IncomeInput>): Pro
 }
 
 /**
- * The analyzer renders the same company several ways — "COMCAST" vs "Xfinity",
+ * Vendor names the analyzer renders the same company several ways — "COMCAST" vs "Xfinity",
  * "Utility Payment" vs "City of Kent". Duplicate checks MUST compare on this,
  * or the identical bill can be filed twice without the guard ever noticing.
  */
@@ -1883,6 +1902,7 @@ export interface HouseholdExpenseInput {
   amount: number;
   homeOfficeEligible?: boolean | undefined;
   source?: string | undefined;
+  receiptFile?: string | undefined;
 }
 
 export async function createHouseholdExpense(
@@ -1958,6 +1978,8 @@ export interface ReceiptAnalysis {
   bucket?: IntakeBucket | undefined;
   /** Set when bucket is "household" — the home category it mapped to. */
   householdCategory?: HouseholdCategory | undefined;
+  /** The uploaded file, now stored on the server. */
+  receiptFile?: string | undefined;
 }
 
 /** Upload a receipt photo/PDF → Lumen reads it and returns parsed expense fields. */
@@ -1982,6 +2004,7 @@ export async function analyzeReceipt(file: File | Blob, name?: string): Promise<
       ...parsed,
       bucket: (j.bucket as IntakeBucket | undefined) ?? "business",
       householdCategory: (j.householdCategory as HouseholdCategory | undefined) || undefined,
+      receiptFile: (j.receiptFile as string | undefined) || undefined,
     };
   }
   await delay(900);
