@@ -794,6 +794,10 @@ function Expenses({
     return okCat && okQ;
   });
 
+  // Trailing total that follows the category filter (and the search box) so the
+  // figure at the bottom of the list always matches what is actually shown.
+  const filteredTotal = filtered.reduce((s, r) => s + r.amount, 0);
+
   const groups = useMemo(() => {
     const m = new Map<string, MoneyExpense[]>();
     for (const r of filtered) {
@@ -1008,6 +1012,23 @@ function Expenses({
           })}
         </div>
       )}
+
+      {!loading && groups.length ? (
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded-xl border border-hairline bg-surface px-3.5 py-2.5">
+          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            {cat === "all" ? "Total, all categories" : `Total, ${cat}`}
+            {q.trim() ? " · matching search" : ""}
+          </span>
+          <span className="flex items-baseline gap-2">
+            <span className="text-title text-lg font-semibold tabular-nums">
+              {money(filteredTotal)}
+            </span>
+            <span className="text-[12px] text-muted-foreground">
+              across {filtered.length} {filtered.length === 1 ? "entry" : "entries"}
+            </span>
+          </span>
+        </div>
+      ) : null}
 
       <ExpenseDialog
         open={dialog.open}
