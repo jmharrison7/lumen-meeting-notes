@@ -433,6 +433,36 @@ export async function listCaptures(limit = 40): Promise<Capture[]> {
   return [];
 }
 
+/**
+ * Voice-memo upload, asynchronous by design: the note lands immediately and is transcribed
+ * server-side. A synchronous upload used to be one long request that the edge could cancel
+ * before it returned, so the memo silently never appeared.
+ */
+export async function uploadVoiceMemo(
+  file: File,
+  opts: { clientId?: string | undefined; title?: string | undefined } = {},
+): Promise<Idea> {
+  if (BASE) {
+    const form = new FormData();
+    form.append("audio", file, file.name);
+    const qs = new URLSearchParams({ name: file.name });
+    if (opts.clientId) qs.set("clientId", opts.clientId);
+    if (opts.title) qs.set("title", opts.title);
+    // headers: {} lets the browser set the multipart boundary (http() forces JSON otherwise)
+    return http<Idea>(`/ideas/audio?${qs.toString()}`, { method: "POST", body: form, headers: {} });
+  }
+  await delay(400);
+  return {
+    id: `i-${Date.now().toString(36)}`,
+    title: opts.title || file.name,
+    transcript: "",
+    clientId: opts.clientId,
+    tags: [],
+    source: "uploaded",
+    createdAtISO: new Date().toISOString(),
+  } as Idea;
+}
+
 export async function listClientFiles(clientId: string): Promise<ClientFile[]> {
   if (BASE) return http<ClientFile[]>(`/clients/${clientId}/files`);
   await delay(280);

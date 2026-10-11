@@ -6,6 +6,7 @@ import {
   createIdea,
   titleFromTranscript,
   transcribeAudio,
+  uploadVoiceMemo,
 } from "@/lib/api";
 import { clock } from "@/lib/format";
 import type { IdeaSource } from "@/lib/types";
@@ -65,6 +66,8 @@ export function QuickCapture({
   const [clientId, setClientId] = useState(defaultClientId ?? "");
   const [newClient, setNewClient] = useState<{ name: string; note?: string } | undefined>(undefined);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   /** Multi-file uploads: transcribe one at a time so each note keeps its own title/client/tags. */
   const [queue, setQueue] = useState<{ file: File; label: string }[]>([]);
   const [queuePos, setQueuePos] = useState(0);
@@ -218,32 +221,44 @@ export function QuickCapture({
     recorderRef.current?.stop();
   }
 
-  function onFile(file: File | undefined) {
-    if (!file) return;
-    const size = `${(file.size / 1024 / 1024).toFixed(1)} MB`;
-    void handleBlob(file, "uploaded", undefined, `${file.name} · ${size}`);
+  /**
+   * Voice-memo uploads save FIRST and transcribe in the background, so a long memo can never be
+   * lost to a request timeout (see uploadVoiceMemo). Multi-select just uploads each in turn.
+   */
+  async function uploadNow(files: File[]) {
+    if (!files.length || uploading) return;
+    setUploading(true);
+    let saved = 0;
+    try {
+      for (const f of files) {
+        try {
+          await uploadVoiceMemo(f, { clientId: clientId || defaultClientId || undefined });
+          saved++;
+        } catch {
+          toast.error(`Couldn't save ${f.name}`, { description: "Try again, or record it here instead." });
+        }
+      }
+      if (saved) {
+        await qc.invalidateQueries({ queryKey: ["ideas"] });
+        await qc.invalidateQueries({ queryKey: ["captures"] });
+        toast.success(
+          saved === 1 ? "Saved — transcribing now." : `Saved ${saved} memos — transcribing now.`,
+          { description: "It's already in Ideas; the text fills in shortly." },
+        );
+      }
+    } finally {
+      setUploading(false);
+    }
   }
 
-  /**
-   * Multi-select upload. The picker used to take only `files[0]`, so choosing several notes
-   * silently discarded all but the first. Now the extra files are queued and transcribed one
-   * at a time, and each still lands in the draft for review before it saves.
-   */
+  function onFile(file: File | undefined) {
+    if (!file) return;
+    void uploadNow([file]);
+  }
+
   function onFiles(files: FileList | null) {
     if (!files || !files.length) return;
-    const items = Array.from(files).map((f) => ({
-      file: f,
-      label: `${f.name} · ${(f.size / 1024 / 1024).toFixed(1)} MB`,
-    }));
-    if (items.length === 1) {
-      const only = items[0];
-      if (only) onFile(only.file);
-      return;
-    }
-    setQueue(items);
-    setQueuePos(0);
-    const first = items[0];
-    if (first) void handleBlob(first.file, "uploaded", undefined, first.label);
+    void uploadNow(Array.from(files));
   }
 
   function startTyped() {
@@ -308,7 +323,23 @@ export function QuickCapture({
   }
 
   return (
-    <section ref={sectionRef} className="rounded-2xl border border-hairline bg-card p-5 shadow-soft">
+    <section
+      ref={sectionRef}
+      onDragOver={(e) => {
+        e.preventDefault();
+        if (!dragOver) setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false);
+        void uploadNow(Array.from(e.dataTransfer.files));
+      }}
+      className={cn(
+        "rounded-2xl border bg-card p-5 shadow-soft transition-colors",
+        dragOver ? "border-ember border-dashed" : "border-hairline",
+      )}
+    >
       <h2 className="text-title mb-4 text-sm font-semibold uppercase tracking-[0.12em] text-muted-foreground">
         {heading}
       </h2>
@@ -351,12 +382,26 @@ export function QuickCapture({
               </span>
             ) : null}
 
-            <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-lg border border-hairline bg-surface px-3 text-sm text-muted-foreground transition-colors hover:border-ember/40 hover:text-ember">
-              <Upload className="size-4" /> Upload voice memo
+            <label
+              className={cn(
+                "inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-hairline bg-surface px-3 text-sm text-muted-foreground transition-colors",
+                uploading ? "opacity-60" : "cursor-pointer hover:border-ember/40 hover:text-ember",
+              )}
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> Uploading…
+                </>
+              ) : (
+                <>
+                  <Upload className="size-4" /> Upload voice memo
+                </>
+              )}
               <input
                 type="file"
                 multiple
-                accept="audio/*,.m4a,.mp3,.wav"
+                disabled={uploading}
+                accept="audio/*,video/*,.m4a,.mp3,.wav,.webm,.ogg,.oga,.opus,.aac,.aiff,.aif,.caf,.mp4,.m4v,.mov"
                 className="sr-only"
                 onChange={(e) => {
                   onFiles(e.target.files);
