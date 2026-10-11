@@ -1081,17 +1081,26 @@ export async function transcribeAudio(
     const form = new FormData();
     form.append("audio", file, file instanceof File ? file.name : "recording.webm");
     if (speakers.length) form.append("speakers", JSON.stringify(speakers));
-    const res = await fetch(`${BASE}/transcribe`, { method: "POST", body: form });
-    if (!res.ok) throw new Error(`Transcription failed: ${res.status}`);
-    return (await res.json()) as {
-      transcript: string;
-      durationSeconds?: number;
-      speakerLabels?: string[];
-      diarizationStatus?: string;
-      voiceprintMatches?: Record<string, string>;
-      speakerSegments?: { start: number; end: number; speaker: string }[];
-      segments?: { start: number; end: number; text: string; speaker?: string | undefined }[];
-    };
+    // Submit, then poll. A long recording transcribed inside ONE request can outlive what the
+    // edge will hold open (cloudflared: "context canceled") and be lost, so the work runs
+    // server-side and we wait on a job instead of on the connection.
+    const submit = await fetch(`${BASE}/transcribe/async`, { method: "POST", body: form });
+    if (!submit.ok) throw new Error(`Transcription failed: ${submit.status}`);
+    const { jobId } = (await submit.json()) as { jobId?: string };
+    if (!jobId) throw new Error("Transcription failed: no job started");
+    const deadline = Date.now() + 30 * 60 * 1000;
+    for (;;) {
+      await delay(2500);
+      const res = await fetch(`${BASE}/transcribe/async/${jobId}`);
+      if (!res.ok) throw new Error(`Transcription failed: ${res.status}`);
+      const job = (await res.json()) as { status?: string; error?: string } & Record<string, unknown>;
+      if (job.status === "done") {
+        const { status: _s, ...result } = job;
+        return result as { transcript: string };
+      }
+      if (job.status === "error") throw new Error(job.error || "Transcription failed");
+      if (Date.now() > deadline) throw new Error("Transcription timed out");
+    }
   }
   await delay(1200);
   return nextMockTranscript();
