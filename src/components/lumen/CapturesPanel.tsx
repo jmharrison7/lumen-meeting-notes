@@ -1,10 +1,10 @@
 import { FileText, Mic } from "lucide-react";
 import { fullDate, relativeDate } from "@/lib/format";
-import type { Capture, CaptureStatus } from "@/lib/types";
+import type { Capture, CaptureStatus, Client } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { EmptyState, SectionTitle, Tag } from "./primitives";
+import { ClientChip, EmptyState, SectionTitle, Tag } from "./primitives";
 
-const statusLabel: Record<CaptureStatus, string> = {
+export const captureStatusLabel: Record<CaptureStatus, string> = {
   received: "Received",
   filed: "Filed",
   actions: "To-dos created",
@@ -24,7 +24,13 @@ function isAudio(c: Capture) {
   return (c.mime ?? "").startsWith("audio/") || AUDIO_EXT.test(c.name);
 }
 
-function CaptureRow({ c }: { c: Capture }) {
+export function CaptureRow({
+  c,
+  client,
+}: {
+  c: Capture;
+  client?: Client | undefined;
+}) {
   const Icon = isAudio(c) ? Mic : FileText;
   return (
     <li className="flex items-start gap-3 border-b border-hairline px-4 py-3.5 last:border-0">
@@ -35,7 +41,7 @@ function CaptureRow({ c }: { c: Capture }) {
         <div className="flex items-start gap-2">
           <p className="min-w-0 flex-1 truncate text-sm font-medium">{c.name}</p>
           <span className={cn("shrink-0 text-[11px] font-medium", statusTone[c.status])}>
-            {statusLabel[c.status]}
+            {captureStatusLabel[c.status]}
             {c.actionsTotal > 0 ? ` · ${c.actionsDone}/${c.actionsTotal}` : ""}
           </span>
         </div>
@@ -47,6 +53,7 @@ function CaptureRow({ c }: { c: Capture }) {
           <p className="mt-1 text-[13px] italic text-muted-foreground">Waiting on transcription…</p>
         )}
         <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+          {client ? <ClientChip name={client.name} color={client.tagColor} /> : null}
           <span title={fullDate(c.createdAtISO)}>{relativeDate(c.createdAtISO)}</span>
           {c.chars ? (
             <>
@@ -63,6 +70,29 @@ function CaptureRow({ c }: { c: Capture }) {
   );
 }
 
+function CaptureList({
+  captures,
+  clients,
+  showClient = false,
+}: {
+  captures: Capture[];
+  clients?: Client[] | undefined;
+  showClient?: boolean;
+}) {
+  return (
+    <ul className="overflow-hidden rounded-xl border border-hairline bg-card">
+      {captures.map((c) => (
+        <CaptureRow
+          key={c.id}
+          c={c}
+          client={showClient ? clients?.find((x) => x.id === c.clientId) : undefined}
+        />
+      ))}
+    </ul>
+  );
+}
+
+/** Every memo/upload on one client, with its disposition. Sits on the client's Ideas tab. */
 export function CapturesPanel({
   captures,
   title = "Memos & uploads",
@@ -85,11 +115,29 @@ export function CapturesPanel({
           {captures.length} item{captures.length === 1 ? "" : "s"}
         </span>
       </div>
-      <ul className="overflow-hidden rounded-xl border border-hairline bg-card">
-        {captures.map((c) => (
-          <CaptureRow key={c.id} c={c} />
-        ))}
-      </ul>
+      <CaptureList captures={captures} />
+    </section>
+  );
+}
+
+/** Recent captures across every client, so a memo's landing is visible in one spot. */
+export function RecentCaptures({
+  captures,
+  clients,
+}: {
+  captures: Capture[];
+  clients: Client[];
+}) {
+  if (!captures.length) return null;
+  return (
+    <section className="space-y-3">
+      <div className="flex items-baseline gap-2">
+        <SectionTitle>Recent captures</SectionTitle>
+        <span className="text-[11px] text-muted-foreground">
+          Latest {captures.length} across all clients &amp; areas
+        </span>
+      </div>
+      <CaptureList captures={captures} clients={clients} showClient />
     </section>
   );
 }

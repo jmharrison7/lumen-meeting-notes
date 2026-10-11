@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { listClients, listIdeas } from "@/lib/api";
+import { listCaptures, listClients, listIdeas } from "@/lib/api";
 import { EmptyState, ErrorState, ListSkeleton, SectionTitle } from "@/components/lumen/primitives";
 import { IdeasGrid } from "@/components/lumen/IdeasGrid";
+import { RecentCaptures } from "@/components/lumen/CapturesPanel";
 import { QuickCapture } from "@/components/lumen/QuickCapture";
 import { useAccess } from "@/lib/access-store";
 import { useScope } from "@/lib/scope-store";
@@ -32,6 +33,7 @@ export const Route = createFileRoute("/ideas/")({
 function IdeasPage() {
   const ideas = useQuery({ queryKey: ["ideas"], queryFn: listIdeas });
   const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
+  const captures = useQuery({ queryKey: ["captures"], queryFn: () => listCaptures(60) });
   const [q, setQ] = useState("");
   const [client, setClient] = useState("all");
   const [tag, setTag] = useState("all");
@@ -44,6 +46,7 @@ function IdeasPage() {
     i.clientId ? canSeeClient(i.clientId) && scopedClientIds.has(i.clientId) : isOwner && scope === "work",
   );
   const pending = all.filter((i) => (i.status ?? "accepted") === "pending");
+  const scopedCaptures = (captures.data ?? []).filter((c) => scopedClientIds.has(c.clientId));
   const accepted = all.filter((i) => (i.status ?? "accepted") !== "pending");
   const allTags = useMemo(
     () => Array.from(new Set(all.flatMap((i) => i.tags))).sort(),
@@ -69,6 +72,8 @@ function IdeasPage() {
       </header>
 
       {canContribute ? <QuickCapture /> : null}
+
+      <RecentCaptures captures={scopedCaptures} clients={scopedClients} />
 
       {isOwner && pending.length ? (
         <section className="space-y-3">

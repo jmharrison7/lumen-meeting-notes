@@ -427,6 +427,12 @@ export async function listClientCaptures(clientId: string): Promise<Capture[]> {
   return [];
 }
 
+export async function listCaptures(limit = 40): Promise<Capture[]> {
+  if (BASE) return http<Capture[]>(`/captures?limit=${limit}`);
+  await delay(220);
+  return [];
+}
+
 export async function listClientFiles(clientId: string): Promise<ClientFile[]> {
   if (BASE) return http<ClientFile[]>(`/clients/${clientId}/files`);
   await delay(280);

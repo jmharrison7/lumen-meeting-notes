@@ -257,6 +257,7 @@ export type CaptureStatus = "received" | "filed" | "actions" | "complete";
 export interface Capture {
   id: string;
   clientId: string;
+  clientName?: string | undefined;
   kind: DocKind;
   name: string;
   mime?: string | undefined;
