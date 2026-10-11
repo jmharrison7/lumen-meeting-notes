@@ -3,6 +3,7 @@ import type {
   ActionItem,
   ActionTemplate,
   CalendarEvent,
+  Capture,
   Client,
   HashtagSet,
   Note,
@@ -418,6 +419,12 @@ function kindFromUrl(url: string): DocKind {
   if (url.includes("/spreadsheets/")) return "sheets";
   if (url.includes("/document/")) return "docs";
   return "file";
+}
+
+export async function listClientCaptures(clientId: string): Promise<Capture[]> {
+  if (BASE) return http<Capture[]>(`/clients/${clientId}/captures`);
+  await delay(220);
+  return [];
 }
 
 export async function listClientFiles(clientId: string): Promise<ClientFile[]> {

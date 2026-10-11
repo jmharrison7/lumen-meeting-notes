@@ -251,6 +251,25 @@ export interface Idea {
   submittedByName?: string | undefined;
 }
 
+/* A capture = one memo/upload on a client, with how far Lumen has taken it. */
+export type CaptureStatus = "received" | "filed" | "actions" | "complete";
+
+export interface Capture {
+  id: string;
+  clientId: string;
+  kind: DocKind;
+  name: string;
+  mime?: string | undefined;
+  source: string;
+  tags: string[];
+  createdAtISO: string;
+  chars: number;
+  excerpt: string;
+  actionsTotal: number;
+  actionsDone: number;
+  status: CaptureStatus;
+}
+
 export interface BrandDNA {
   clientId: string;
   voice: string[];

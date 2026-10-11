@@ -6,6 +6,7 @@ import {
   createActionItem,
   deleteActionItem,
   listClientActionItems,
+  listClientCaptures,
   listClients,
   listIdeas,
   listNotes,
@@ -18,6 +19,7 @@ import { TemplatesPanel } from "@/components/lumen/TemplatesPanel";
 import { AskPanel } from "@/components/lumen/AskPanel";
 import { BrandDnaPanel } from "@/components/lumen/BrandDnaPanel";
 import { QuickCapture } from "@/components/lumen/QuickCapture";
+import { CapturesPanel } from "@/components/lumen/CapturesPanel";
 import { IdeasGrid } from "@/components/lumen/IdeasGrid";
 import { TodoList } from "@/components/lumen/TodoList";
 import { AccessPanel } from "@/components/lumen/AccessPanel";
@@ -57,6 +59,10 @@ function ClientDetail() {
   const clients = useQuery({ queryKey: ["clients"], queryFn: listClients });
   const notes = useQuery({ queryKey: ["notes"], queryFn: listNotes });
   const ideas = useQuery({ queryKey: ["ideas"], queryFn: listIdeas });
+  const captures = useQuery({
+    queryKey: ["clientCaptures", clientId],
+    queryFn: () => listClientCaptures(clientId),
+  });
   const qc = useQueryClient();
 
   // To-do list, dual-placed: the same items as the standalone page, scoped to this client.
@@ -240,6 +246,7 @@ function ClientDetail() {
       ) : tab === "Ideas" ? (
         <div className="space-y-5">
           {canContribute ? <QuickCapture defaultClientId={clientId} /> : null}
+          <CapturesPanel captures={captures.data ?? []} />
           {isOwner && pendingIdeas.length ? (
             <section className="space-y-3">
               <h2 className="text-title text-sm font-semibold uppercase tracking-[0.12em] text-muted-foreground">
